@@ -1,181 +1,123 @@
-const http = require('http');
+﻿const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const DATA_FILE = path.join(__dirname, 'data.json');
+const MONGO_URI = process.env.MONGO_URI;
+const DB_FILE = path.join(__dirname, 'db.json');
 
-function loadData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    const init = { employees: [], records: [], presets: {} };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(init, null, 2));
-    return init;
-  }
-  try {
-    const d = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    if (!d.presets) d.presets = {};
-    if (!d.employees) d.employees = [];
-    if (!d.records) d.records = [];
-    return d;
-  } catch(e) {
-    console.error('data.json 파싱 오류:', e);
-    return { employees: [], records: [], presets: {} };
+let db = { employees: [], records: [], presets: {} };
+let mongoCol = null;
+
+async function initDB() {
+  if (MONGO_URI) {
+    try {
+      const { MongoClient } = require('mongodb');
+      const client = new MongoClient(MONGO_URI);
+      await client.connect();
+      const col = client.db('vehiclelog').collection('data');
+      mongoCol = col;
+      const doc = await col.findOne({ _id: 'main' });
+      if (doc) {
+        db = { employees: doc.employees||[], records: doc.records||[], presets: doc.presets||{} };
+      } else {
+        await col.insertOne({ _id: 'main', ...db });
+      }
+      console.log('MongoDB Atlas connected');
+    } catch(e) {
+      console.error('MongoDB failed:', e.message);
+      loadFile();
+    }
+  } else {
+    loadFile();
   }
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+function loadFile() {
+  if (fs.existsSync(DB_FILE)) {
+    try { db = JSON.parse(fs.readFileSync(DB_FILE)); if(!db.presets) db.presets={}; } catch(e) {}
+  }
+}
+
+async function saveDB() {
+  if (mongoCol) {
+    await mongoCol.replaceOne({ _id: 'main' }, { _id: 'main', ...db }, { upsert: true });
+  } else {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  }
 }
 
 function readBody(req, cb) {
-  let body = '';
-  req.on('data', chunk => body += chunk);
-  req.on('end', () => {
-    try { cb(null, JSON.parse(body)); }
-    catch(e) { cb(e, null); }
-  });
+  let b = '';
+  req.on('data', c => b += c);
+  req.on('end', () => { try { cb(JSON.parse(b || '{}')); } catch(e) { cb({}); } });
 }
 
 function sendJSON(res, data, code = 200) {
-  res.writeHead(code, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*'
-  });
+  res.writeHead(code, { 'Content-Type': 'application/json;charset=utf-8', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify(data));
 }
 
 const server = http.createServer((req, res) => {
-  const parsed = url.parse(req.url, true);
-  const pathname = parsed.pathname;
-  const method = req.method;
-
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
-  if (method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+  const { pathname } = url.parse(req.url, true);
+  const m = req.method;
 
-  // HTML
-  if (method === 'GET' && pathname === '/') {
-    try {
-      const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-    } catch(e) {
-      res.writeHead(500); res.end('index.html not found');
-    }
+  if (m === 'GET' && pathname === '/') {
+    try { res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' }); res.end(fs.readFileSync(path.join(__dirname, 'index.html'))); }
+    catch(e) { res.writeHead(500); res.end('index.html not found'); }
+    return;
+  }
+  if (m === 'GET' && pathname === '/api/data') { sendJSON(res, db); return; }
+
+  if (m === 'POST' && pathname === '/api/employee') {
+    readBody(req, async b => {
+      const name = (b.name || '').trim();
+      if (!name) return sendJSON(res, { ok: false, msg: '이름을 입력해주세요' });
+      if (db.employees.includes(name)) return sendJSON(res, { ok: false, msg: '이미 등록된 사원입니다' });
+      db.employees.push(name);
+      await saveDB();
+      sendJSON(res, { ok: true, data: db });
+    }); return;
+  }
+
+  if (m === 'DELETE' && pathname.startsWith('/api/employee/')) {
+    const name = decodeURIComponent(pathname.replace('/api/employee/', ''));
+    db.employees = db.employees.filter(e => e !== name);
+    saveDB().then(() => sendJSON(res, { ok: true, data: db }));
     return;
   }
 
-  // GET /api/employees
-  if (method === 'GET' && pathname === '/api/employees') {
-    const d = loadData();
-    sendJSON(res, { ok: true, employees: d.employees });
+  if (m === 'POST' && pathname === '/api/preset') {
+    readBody(req, async b => { db.presets[b.emp] = b; await saveDB(); sendJSON(res, { ok: true }); });
     return;
   }
 
-  // POST /api/employees  { name: "홍길동" }
-  if (method === 'POST' && pathname === '/api/employees') {
-    readBody(req, (err, body) => {
-      if (err || !body || !body.name) {
-        sendJSON(res, { ok: false, error: '이름이 없습니다' }, 400);
-        return;
-      }
-      const d = loadData();
-      const name = body.name.trim();
-      if (!name) { sendJSON(res, { ok: false, error: '빈 이름' }, 400); return; }
-      if (d.employees.includes(name)) {
-        sendJSON(res, { ok: false, error: '이미 존재하는 사원입니다' });
-        return;
-      }
-      d.employees.push(name);
-      saveData(d);
-      console.log(`[사원 추가] ${name}`);
-      sendJSON(res, { ok: true, employees: d.employees });
-    });
+  if (m === 'POST' && pathname === '/api/record') {
+    readBody(req, async b => {
+      b.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      db.records.push(b);
+      await saveDB();
+      sendJSON(res, { ok: true, data: db });
+    }); return;
+  }
+
+  if (m === 'DELETE' && pathname.startsWith('/api/record/')) {
+    const id = pathname.replace('/api/record/', '');
+    db.records = db.records.filter(r => r.id !== id);
+    saveDB().then(() => sendJSON(res, { ok: true, data: db }));
     return;
   }
 
-  // DELETE /api/employees/:name
-  if (method === 'DELETE' && pathname.startsWith('/api/employees/')) {
-    const name = decodeURIComponent(pathname.replace('/api/employees/', ''));
-    const d = loadData();
-    d.employees = d.employees.filter(e => e !== name);
-    saveData(d);
-    console.log(`[사원 삭제] ${name}`);
-    sendJSON(res, { ok: true, employees: d.employees });
-    return;
-  }
-
-  // GET /api/presets
-  if (method === 'GET' && pathname === '/api/presets') {
-    const d = loadData();
-    sendJSON(res, { ok: true, presets: d.presets });
-    return;
-  }
-
-  // POST /api/presets
-  if (method === 'POST' && pathname === '/api/presets') {
-    readBody(req, (err, body) => {
-      if (err || !body) { sendJSON(res, { ok: false }, 400); return; }
-      const d = loadData();
-      d.presets[body.employee] = body;
-      saveData(d);
-      sendJSON(res, { ok: true });
-    });
-    return;
-  }
-
-  // GET /api/records?employee=&year=&month=
-  if (method === 'GET' && pathname === '/api/records') {
-    const d = loadData();
-    const { employee, year, month } = parsed.query;
-    let records = [...d.records];
-    if (employee) records = records.filter(r => r.employee === employee);
-    if (year && month) {
-      const prefix = `${year}-${String(month).padStart(2,'0')}`;
-      records = records.filter(r => r.date && r.date.startsWith(prefix));
-    }
-    records.sort((a, b) => b.date > a.date ? 1 : -1);
-    sendJSON(res, { ok: true, records });
-    return;
-  }
-
-  // POST /api/records
-  if (method === 'POST' && pathname === '/api/records') {
-    readBody(req, (err, body) => {
-      if (err || !body) { sendJSON(res, { ok: false }, 400); return; }
-      const d = loadData();
-      body.id = `${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-      body.createdAt = new Date().toISOString();
-      d.records.push(body);
-      saveData(d);
-      console.log(`[기록 추가] ${body.employee} / ${body.date} / ${body.type}`);
-      sendJSON(res, { ok: true, id: body.id });
-    });
-    return;
-  }
-
-  // DELETE /api/records/:id
-  if (method === 'DELETE' && pathname.startsWith('/api/records/')) {
-    const id = pathname.replace('/api/records/', '');
-    const d = loadData();
-    const before = d.records.length;
-    d.records = d.records.filter(r => r.id !== id);
-    saveData(d);
-    console.log(`[기록 삭제] id=${id} (${before - d.records.length}건 삭제)`);
-    sendJSON(res, { ok: true });
-    return;
-  }
-
-  res.writeHead(404); res.end(JSON.stringify({ error: 'Not found' }));
+  res.writeHead(404); res.end('not found');
 });
 
 const PORT = process.env.PORT || 3030;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('');
-  console.log('  ✅ 차량업무일지 서버 실행 중');
-  console.log(`  📍 로컬:   http://localhost:${PORT}`);
-  console.log(`  📡 공유:   npx ngrok http ${PORT}`);
-  console.log('');
+initDB().then(() => {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log('Server running on port ' + PORT);
+  });
 });
