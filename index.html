@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>차량업무일지 — 더 맛있는 하루</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #222536;
+  --border: #2e3148;
+  --accent: #4f8ef7;
+  --accent2: #f7894f;
+  --green: #4fda9a;
+  --red: #f74f6a;
+  --yellow: #f7d44f;
+  --text: #e8eaf2;
+  --text2: #8b90a8;
+  --text3: #555a75;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Noto Sans KR', sans-serif; min-height: 100vh; }
+
+/* TOP BAR */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-logo { font-weight: 900; font-size: 16px; letter-spacing: -0.5px; }
+.topbar-logo span { color: var(--accent); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.employee-selector { 
+  background: var(--surface2); border: 1px solid var(--border); 
+  color: var(--text); padding: 6px 14px; border-radius: 8px;
+  font-family: inherit; font-size: 14px; cursor: pointer; outline: none;
+}
+.employee-selector:focus { border-color: var(--accent); }
+.btn { 
+  padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 500; transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #6ba3ff; }
+.btn-success { background: var(--green); color: #0f1117; }
+.btn-success:hover { background: #6fedb6; }
+.btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: transparent; color: var(--red); border: 1px solid transparent; font-size: 12px; padding: 4px 8px; }
+.btn-danger:hover { border-color: var(--red); }
+
+/* MAIN LAYOUT */
+.main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+/* TABS */
+.tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 28px; width: fit-content; }
+.tab { padding: 8px 20px; border-radius: 7px; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--text2); transition: all 0.15s; border: none; background: transparent; font-family: inherit; }
+.tab.active { background: var(--accent); color: #fff; }
+.tab:hover:not(.active) { color: var(--text); }
+
+/* MONTH NAV */
+.month-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.month-display { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; min-width: 140px; }
+.month-display span { color: var(--accent); }
+.nav-btn { width: 32px; height: 32px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.15s; }
+.nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* STATS ROW */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-value { font-size: 26px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.stat-value.blue { color: var(--accent); }
+.stat-value.green { color: var(--green); }
+.stat-value.orange { color: var(--accent2); }
+.stat-value.yellow { color: var(--yellow); }
+.stat-unit { font-size: 13px; color: var(--text2); margin-left: 4px; font-family: 'Noto Sans KR'; font-weight: 400; }
+
+/* FORM CARD */
+.form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 28px; }
+.form-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+.form-card h3::before { content: ''; display: block; width: 4px; height: 16px; background: var(--accent); border-radius: 2px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-label { font-size: 12px; color: var(--text2); font-weight: 500; }
+.form-input, .form-select, .form-textarea {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); padding: 10px 12px; border-radius: 8px;
+  font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.15s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+.form-textarea { resize: vertical; min-height: 70px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* TYPE BADGE */
+.type-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; }
+.type-commute { background: rgba(79,142,247,0.15); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+.type-business { background: rgba(247,137,79,0.15); color: var(--accent2); border: 1px solid rgba(247,137,79,0.3); }
+.type-fuel { background: rgba(79,218,154,0.15); color: var(--green); border: 1px solid rgba(79,218,154,0.3); }
+
+/* RECORDS TABLE */
+.table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.table-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.table-header h3 { font-size: 14px; font-weight: 700; }
+.record-count { font-size: 12px; color: var(--text3); font-family: 'DM Mono', monospace; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 10px 16px; text-align: left; font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+td { padding: 13px 16px; font-size: 13px; border-bottom: 1px solid rgba(46,49,72,0.5); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(79,142,247,0.04); }
+.td-date { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text2); }
+.td-km { font-family: 'DM Mono', monospace; font-weight: 500; }
+.td-purpose { color: var(--text2); font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty-state { text-align: center; padding: 60px; color: var(--text3); }
+.empty-state .emoji { font-size: 40px; margin-bottom: 12px; }
+
+/* SUMMARY VIEW */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.emp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.emp-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.emp-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.emp-stat { background: var(--surface2); border-radius: 8px; padding: 10px; }
+.emp-stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+.emp-stat-val { font-size: 18px; font-weight: 700; font-family: 'DM Mono', monospace; }
+
+/* EXPORT BTN */
+.export-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px; transition: all 0.15s; }
+.export-btn:hover { border-color: var(--green); color: var(--green); }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 400px; }
+.modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+/* TAG ROW */
+.current-user-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 500; }
+.current-user-tag span { color: var(--accent); }
+
+@media (max-width: 768px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+  .topbar { padding: 0 16px; }
+  .main { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">🚗 차량업무일지 <span>/ 더 맛있는 하루</span></div>
+  <div class="topbar-right">
+    <div class="current-user-tag">사원: <span id="currentUserLabel">선택 안됨</span></div>
+    <select class="employee-selector" id="empSelect" onchange="selectEmployee(this.value)">
+      <option value="">-- 사원 선택 --</option>
+    </select>
+    <button class="btn btn-ghost" onclick="showAddEmployee()">+ 사원 추가</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('record')">📋 기록 입력</button>
+    <button class="tab" onclick="switchTab('list')">📂 내 기록</button>
+    <button class="tab" onclick="switchTab('summary')">📊 월별 요약</button>
+  </div>
+
+  <!-- MONTH NAV (shared) -->
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <div class="month-display" id="monthDisplay"></div>
+    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+    <button class="btn btn-ghost" onclick="goToday()" style="font-size:12px;padding:6px 12px">오늘</button>
+    <div style="flex:1"></div>
+    <button class="export-btn" onclick="exportExcel()">📥 엑셀 다운로드</button>
+    <button class="export-btn" onclick="printPDF()" style="margin-left:8px">🖨️ PDF 출력</button>
+  </div>
+
+  <!-- TAB: RECORD -->
+  <div id="tab-record">
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card"><div class="stat-label">이번 달 총 주행</div><div class="stat-value blue" id="s-total-km">0<span class="stat-unit">km</span></div></div>
+      <div class="stat-card"><div class="stat-label">출퇴근 횟수</div><div class="stat-value green" id="s-commute">0<span class="stat-unit">회</span></div></div>
+      <div class="stat-card"><div class="stat-label">외근 횟수</div><div class="stat-value orange" id="s-business">0<span class="stat-unit">회</span></div></div>
+      <div class="stat-card"><div class="stat-label">주유 총액</div><div class="stat-value yellow" id="s-fuel">0<span class="stat-unit">원</span></div></div>
+    </div>
+
+    <div class="form-card">
+      <h3>새 기록 추가</h3>
+      <div class="form-grid three">
+        <div class="form-group">
+          <label class="form-label">날짜</label>
+          <input type="date" class="form-input" id="f-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">유형</label>
+          <select class="form-select" id="f-type" onchange="onTypeChange()">
+            <option value="commute">🏠 출퇴근</option>
+            <option value="business">🏢 외근</option>
+            <option value="fuel">⛽ 주유</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">차량번호</label>
+          <input type="text" class="form-input" id="f-car" placeholder="예) 12가 3456">
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="form-group">
+          <label class="form-label">출발지</label>
+          <input type="text" class="form-input" id="f-from" placeholder="예) 용인시 처인구">
+        </div>
+        <div class="form-group">
+          <label class="form-label">도착지</label>
+          <input type="text" class="form-input" id="f-to" placeholder="예) 서울 강남구">
+        </div>
+      </div>
+      <div class="form-grid three" style="margin-top:14px">
+        <div class="form-group">
+          <label class="form-label">주행거리 (km)</label>
+          <input type="number" class="form-input" id="f-km" placeholder="0" min="0">
+        </div>
+        <div class="form-group" id="fuel-group">
+          <label class="form-label">주유량 (L) / 금액 (원)</label>
+          <input type="number" class="form-input" id="f-fuel-amount" placeholder="금액 입력">
+        </div>
+        <div class="form-group">
+          <label class="form-label">방문처 / 고객사</label>
+          <input type="text" class="form-input" id="f-client" placeholder="외근 시 입력">
+        </div>
+      </div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="form-group full">
+          <label class="form-label">업무 내용 / 비고</label>
+          <textarea class="form-textarea" id="f-memo" placeholder="업무 내용을 간단히 기록하세요"></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost" onclick="clearForm()">초기화</button>
+        <button class="btn btn-primary" onclick="submitRecord()">기록 저장</button>
+      </div>
+    </div>
+
+    <!-- Recent records mini -->
+    <div class="table-card">
+      <div class="table-header">
+        <h3>이번 달 기록</h3>
+        <span class="record-count" id="recordCount">0건</span>
+      </div>
+      <div id="recordTable"></div>
+    </div>
+  </div>
+
+  <!-- TAB: LIST -->
+  <div id="tab-list" style="display:none">
+    <div class="table-card">
+      <div class="table-header">
+        <h3 id="listTitle">전체 기록</h3>
+        <span class="record-count" id="listCount">0건</span>
+      </div>
+      <div id="listTable"></div>
+    </div>
+  </div>
+
+  <!-- TAB: SUMMARY -->
+  <div id="tab-summary" style="display:none">
+    <div class="summary-grid" id="summaryGrid"></div>
+  </div>
+</div>
+
+<!-- MODAL: Add Employee -->
+<div class="modal-overlay" id="addEmpModal">
+  <div class="modal">
+    <h3>사원 추가</h3>
+    <div class="form-group">
+      <label class="form-label">이름</label>
+      <input type="text" class="form-input" id="newEmpName" placeholder="홍길동" onkeydown="if(event.key==='Enter')addEmployee()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="addEmployee()">추가</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let currentEmployee = '';
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth() + 1;
+let allRecords = [];
+let currentTab = 'record';
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function formatDate(d) { return d ? d.replace(/-/g,'/') : ''; }
+function formatNum(n) { return Number(n||0).toLocaleString(); }
+
+// Date default
+function setDateDefault() {
+  const today = new Date();
+  document.getElementById('f-date').value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+}
+
+// Month display
+function updateMonthDisplay() {
+  document.getElementById('monthDisplay').innerHTML = `<span>${currentYear}</span>년 <span>${currentMonth}</span>월`;
+}
+
+function changeMonth(d) {
+  currentMonth += d;
+  if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+  updateMonthDisplay();
+  loadRecords();
+}
+
+function goToday() {
+  currentYear = new Date().getFullYear();
+  currentMonth = new Date().getMonth() + 1;
+  updateMonthDisplay();
+  loadRecords();
+}
+
+// Employee
+async function loadEmployees() {
+  const res = await fetch(`${API}/api/employees`);
+  const emps = await res.json();
+  const sel = document.getElementById('empSelect');
+  sel.innerHTML = '<option value="">-- 사원 선택 --</option>';
+  emps.forEach(e => {
+    const o = document.createElement('option');
+    o.value = e; o.textContent = e;
+    sel.appendChild(o);
+  });
+  // Auto-select if saved
+  const saved = localStorage.getItem('vehicle_employee');
+  if (saved && emps.includes(saved)) {
+    sel.value = saved;
+    selectEmployee(saved);
+  }
+}
+
+function selectEmployee(name) {
+  currentEmployee = name;
+  localStorage.setItem('vehicle_employee', name);
+  document.getElementById('currentUserLabel').textContent = name || '선택 안됨';
+  loadRecords();
+}
+
+function showAddEmployee() { document.getElementById('addEmpModal').classList.add('show'); setTimeout(() => document.getElementById('newEmpName').focus(), 100); }
+function closeModal() { document.getElementById('addEmpModal').classList.remove('show'); document.getElementById('newEmpName').value = ''; }
+
+async function addEmployee() {
+  const name = document.getElementById('newEmpName').value.trim();
+  if (!name) return alert('이름을 입력해주세요.');
+  await fetch(`${API}/api/employees`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+  closeModal();
+  await loadEmployees();
+  document.getElementById('empSelect').value = name;
+  selectEmployee(name);
+}
+
+// Records
+async function loadRecords() {
+  if (!currentEmployee) { allRecords = []; renderAll(); return; }
+  const res = await fetch(`${API}/api/records?employee=${encodeURIComponent(currentEmployee)}&year=${currentYear}&month=${currentMonth}`);
+  allRecords = await res.json();
+  allRecords.sort((a,b) => a.date > b.date ? -1 : 1);
+  renderAll();
+}
+
+function renderAll() {
+  updateStats();
+  renderRecordTable();
+  if (currentTab === 'list') renderListTable();
+  if (currentTab === 'summary') renderSummary();
+}
+
+function updateStats() {
+  const totalKm = allRecords.reduce((s,r) => s + Number(r.km||0), 0);
+  const commute = allRecords.filter(r => r.type === 'commute').length;
+  const business = allRecords.filter(r => r.type === 'business').length;
+  const fuel = allRecords.filter(r => r.type === 'fuel').reduce((s,r) => s + Number(r.fuelAmount||0), 0);
+  document.getElementById('s-total-km').innerHTML = `${formatNum(totalKm)}<span class="stat-unit">km</span>`;
+  document.getElementById('s-commute').innerHTML = `${commute}<span class="stat-unit">회</span>`;
+  document.getElementById('s-business').innerHTML = `${business}<span class="stat-unit">회</span>`;
+  document.getElementById('s-fuel').innerHTML = `${formatNum(fuel)}<span class="stat-unit">원</span>`;
+  document.getElementById('recordCount').textContent = `${allRecords.length}건`;
+}
+
+function typeLabel(t) {
+  if (t==='commute') return '<span class="type-badge type-commute">출퇴근</span>';
+  if (t==='business') return '<span class="type-badge type-business">외근</span>';
+  if (t==='fuel') return '<span class="type-badge type-fuel">주유</span>';
+  return t;
+}
+
+function renderTable(records, containerId, showEmployee=false) {
+  const el = document.getElementById(containerId);
+  if (!records.length) { el.innerHTML = '<div class="empty-state"><div class="emoji">🚗</div><div>기록이 없습니다</div></div>'; return; }
+  const empCol = showEmployee ? `<th>사원</th>` : '';
+  let html = `<table><thead><tr>${empCol}<th>날짜</th><th>유형</th><th>차량</th><th>출발지 → 도착지</th><th>주행(km)</th><th>방문처</th><th>주유금액</th><th>업무내용</th><th></th></tr></thead><tbody>`;
+  records.forEach(r => {
+    const empTd = showEmployee ? `<td><b>${r.employee}</b></td>` : '';
+    html += `<tr>
+      ${empTd}
+      <td class="td-date">${formatDate(r.date)}</td>
+      <td>${typeLabel(r.type)}</td>
+      <td style="font-size:12px;color:var(--text2)">${r.car||'-'}</td>
+      <td class="td-purpose">${r.from||''} ${r.to ? '→ '+r.to : ''}</td>
+      <td class="td-km">${r.km ? formatNum(r.km)+'km' : '-'}</td>
+      <td class="td-purpose">${r.client||'-'}</td>
+      <td style="font-family:'DM Mono';font-size:12px">${r.fuelAmount ? formatNum(r.fuelAmount)+'원' : '-'}</td>
+      <td class="td-purpose" style="max-width:160px">${r.memo||'-'}</td>
+      <td><button class="btn btn-danger" onclick="deleteRecord('${r.id}')">삭제</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderRecordTable() { renderTable(allRecords, 'recordTable'); }
+
+async function renderListTable() {
+  document.getElementById('listTitle').textContent = `${currentEmployee} — ${currentYear}년 ${currentMonth}월 전체`;
+  document.getElementById('listCount').textContent = `${allRecords.length}건`;
+  renderTable(allRecords, 'listTable');
+}
+
+async function renderSummary() {
+  const res = await fetch(`${API}/api/employees`);
+  const emps = await res.json();
+  const grid = document.getElementById('summaryGrid');
+  if (!emps.length) { grid.innerHTML = '<div style="color:var(--text3)">등록된 사원이 없습니다</div>'; return; }
+
+  const allRes = await Promise.all(emps.map(e => fetch(`${API}/api/records?employee=${encodeURIComponent(e)}&year=${currentYear}&month=${currentMonth}`).then(r=>r.json())));
+
+  grid.innerHTML = emps.map((emp, i) => {
+    const recs = allRes[i];
+    const totalKm = recs.reduce((s,r)=>s+Number(r.km||0),0);
+    const commute = recs.filter(r=>r.type==='commute').length;
+    const business = recs.filter(r=>r.type==='business').length;
+    const fuel = recs.reduce((s,r)=>s+Number(r.fuelAmount||0),0);
+    return `<div class="emp-card">
+      <div class="emp-name">${emp}</div>
+      <div style="font-size:12px;color:var(--text3)">${currentYear}년 ${currentMonth}월 · ${recs.length}건</div>
+      <div class="emp-stats">
+        <div class="emp-stat"><div class="emp-stat-label">총 주행</div><div class="emp-stat-val" style="color:var(--accent)">${formatNum(totalKm)}<span style="font-size:11px;color:var(--text2)"> km</span></div></div>
+        <div class="emp-stat"><div class="emp-stat-label">출퇴근</div><div class="emp-stat-val" style="color:var(--green)">${commute}<span style="font-size:11px;color:var(--text2)"> 회</span></div></div>
+        <div class="emp-stat"><div class="emp-stat-label">외근</div><div class="emp-stat-val" style="color:var(--accent2)">${business}<span style="font-size:11px;color:var(--text2)"> 회</span></div></div>
+        <div class="emp-stat"><div class="emp-stat-label">주유금액</div><div class="emp-stat-val" style="color:var(--yellow);font-size:14px">${formatNum(fuel)}<span style="font-size:10px;color:var(--text2)"> 원</span></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Form
+function onTypeChange() {
+  const type = document.getElementById('f-type').value;
+  document.getElementById('fuel-group').style.opacity = type==='fuel' ? '1' : '0.4';
+}
+
+function clearForm() {
+  ['f-from','f-to','f-km','f-fuel-amount','f-client','f-memo','f-car'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-type').value = 'commute';
+  setDateDefault();
+  onTypeChange();
+}
+
+async function submitRecord() {
+  if (!currentEmployee) return alert('사원을 먼저 선택해주세요.');
+  const date = document.getElementById('f-date').value;
+  if (!date) return alert('날짜를 입력해주세요.');
+  const record = {
+    employee: currentEmployee,
+    date, type: document.getElementById('f-type').value,
+    car: document.getElementById('f-car').value,
+    from: document.getElementById('f-from').value,
+    to: document.getElementById('f-to').value,
+    km: document.getElementById('f-km').value,
+    fuelAmount: document.getElementById('f-fuel-amount').value,
+    client: document.getElementById('f-client').value,
+    memo: document.getElementById('f-memo').value,
+  };
+  await fetch(`${API}/api/records`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(record) });
+  clearForm();
+  await loadRecords();
+}
+
+async function deleteRecord(id) {
+  if (!confirm('이 기록을 삭제할까요?')) return;
+  await fetch(`${API}/api/records/${id}`, { method:'DELETE' });
+  await loadRecords();
+}
+
+// Tabs
+function switchTab(tab) {
+  currentTab = tab;
+  ['record','list','summary'].forEach(t => {
+    document.getElementById(`tab-${t}`).style.display = t===tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((el,i) => {
+    el.classList.toggle('active', ['record','list','summary'][i] === tab);
+  });
+  if (tab==='list') renderListTable();
+  if (tab==='summary') renderSummary();
+}
+
+// PDF Print
+function printPDF() {
+  if (!currentEmployee) return alert('사원을 먼저 선택해주세요.');
+  if (!allRecords.length) return alert('출력할 기록이 없습니다.');
+
+  const typeMap = {commute:'출퇴근', business:'외근', fuel:'주유'};
+  const totalKm = allRecords.reduce((s,r)=>s+Number(r.km||0),0);
+  const commuteCnt = allRecords.filter(r=>r.type==='commute').length;
+  const businessCnt = allRecords.filter(r=>r.type==='business').length;
+  const fuelTotal = allRecords.reduce((s,r)=>s+Number(r.fuelAmount||0),0);
+
+  const rows = allRecords.map(r => `
+    <tr>
+      <td>${r.date||''}</td>
+      <td><span class="badge badge-${r.type}">${typeMap[r.type]||r.type}</span></td>
+      <td>${r.car||'-'}</td>
+      <td>${r.from||''} ${r.to ? '→ '+r.to : ''}</td>
+      <td style="text-align:right">${r.km ? Number(r.km).toLocaleString()+'km' : '-'}</td>
+      <td>${r.client||'-'}</td>
+      <td style="text-align:right">${r.fuelAmount ? Number(r.fuelAmount).toLocaleString()+'원' : '-'}</td>
+      <td>${r.memo||'-'}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+  <title>차량업무일지_${currentEmployee}_${currentYear}${pad(currentMonth)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Noto Sans KR', sans-serif; font-size: 11px; color: #1a1a2e; background: #fff; padding: 24px 28px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #1a1a2e; padding-bottom: 12px; margin-bottom: 18px; }
+    .header-left h1 { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+    .header-left p { font-size: 11px; color: #666; margin-top: 3px; }
+    .header-right { text-align: right; font-size: 11px; color: #444; line-height: 1.6; }
+    .header-right strong { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+    .stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 18px; }
+    .stat { background: #f4f6fb; border: 1px solid #dde1ee; border-radius: 8px; padding: 10px 14px; }
+    .stat-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .stat-val { font-size: 17px; font-weight: 700; font-family: 'DM Mono', monospace; }
+    .stat-val.blue { color: #2563eb; } .stat-val.green { color: #16a34a; }
+    .stat-val.orange { color: #ea580c; } .stat-val.yellow { color: #b45309; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1a1a2e; color: #fff; padding: 7px 8px; font-size: 9.5px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 7px 8px; border-bottom: 1px solid #eef0f6; font-size: 10.5px; vertical-align: middle; }
+    tr:nth-child(even) td { background: #f9fafc; }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 9px; font-weight: 700; }
+    .badge-commute { background: #dbeafe; color: #1d4ed8; }
+    .badge-business { background: #ffedd5; color: #c2410c; }
+    .badge-fuel { background: #dcfce7; color: #15803d; }
+    .footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+    .sign-row { display: flex; gap: 40px; margin-top: 24px; justify-content: flex-end; }
+    .sign-box { text-align: center; }
+    .sign-box .label { font-size: 10px; color: #666; margin-bottom: 6px; }
+    .sign-box .line { width: 100px; border-bottom: 1px solid #999; height: 32px; }
+    @media print { body { padding: 10px; } @page { margin: 10mm; } }
+  </style></head><body>
+  <div class="header">
+    <div class="header-left">
+      <h1>🚗 차량 업무 일지</h1>
+      <p>(주)더 맛있는 하루 — Vehicle Work Log</p>
+    </div>
+    <div class="header-right">
+      <strong>${currentEmployee}</strong><br>
+      ${currentYear}년 ${currentMonth}월 (총 ${allRecords.length}건)<br>
+      출력일: ${new Date().toLocaleDateString('ko-KR')}
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-label">총 주행거리</div><div class="stat-val blue">${totalKm.toLocaleString()}<span style="font-size:11px;font-family:sans-serif"> km</span></div></div>
+    <div class="stat"><div class="stat-label">출퇴근 횟수</div><div class="stat-val green">${commuteCnt}<span style="font-size:11px;font-family:sans-serif"> 회</span></div></div>
+    <div class="stat"><div class="stat-label">외근 횟수</div><div class="stat-val orange">${businessCnt}<span style="font-size:11px;font-family:sans-serif"> 회</span></div></div>
+    <div class="stat"><div class="stat-label">주유 총액</div><div class="stat-val yellow">${fuelTotal.toLocaleString()}<span style="font-size:11px;font-family:sans-serif"> 원</span></div></div>
+  </div>
+  <table>
+    <thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발지 → 도착지</th><th>주행(km)</th><th>방문처</th><th>주유금액</th><th>업무내용</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="sign-row">
+    <div class="sign-box"><div class="label">작성자</div><div class="line"></div></div>
+    <div class="sign-box"><div class="label">확인자</div><div class="line"></div></div>
+  </div>
+  <div class="footer">
+    <span>(주)더 맛있는 하루 — 차량업무일지 ${currentYear}년 ${currentMonth}월</span>
+    <span>${currentEmployee} | 출력: ${new Date().toLocaleString('ko-KR')}</span>
+  </div>
+  <script>window.onload = () => { window.print(); }<\/script>
+  </body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+}
+
+// Excel Export (CSV)
+async function exportExcel() {
+  if (!currentEmployee) return alert('사원을 먼저 선택해주세요.');
+  const typeMap = {commute:'출퇴근', business:'외근', fuel:'주유'};
+  const rows = [['날짜','유형','사원','차량번호','출발지','도착지','주행거리(km)','방문처','주유금액(원)','업무내용']];
+  allRecords.forEach(r => {
+    rows.push([r.date, typeMap[r.type]||r.type, r.employee, r.car||'', r.from||'', r.to||'', r.km||0, r.client||'', r.fuelAmount||0, r.memo||'']);
+  });
+  const BOM = '\uFEFF';
+  const csv = BOM + rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `차량업무일지_${currentEmployee}_${currentYear}${pad(currentMonth)}.csv`;
+  a.click();
+}
+
+// Init
+setDateDefault();
+onTypeChange();
+updateMonthDisplay();
+loadEmployees();
+</script>
+</body>
+</html>
