@@ -120,12 +120,20 @@ tr:hover td{background:rgba(96,165,250,.03)}
 
 /* AUTOCOMPLETE */
 .ac-wrap{position:relative}
-.ac-list{position:absolute;top:100%;left:0;right:0;background:#1f2937;border:1px solid #4b5563;border-radius:0 0 8px 8px;z-index:100;max-height:200px;overflow-y:auto;display:none}
-.ac-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #374151;display:flex;flex-direction:column;gap:2px}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:#1f2937;border:1px solid #4b5563;border-radius:0 0 8px 8px;z-index:100;max-height:220px;overflow-y:auto;display:none}
+.ac-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #374151;display:flex;align-items:center;gap:6px}
 .ac-item:last-child{border-bottom:none}
 .ac-item:hover{background:#374151}
-.ac-item .ac-name{font-weight:500;color:#f3f4f6}
+.ac-item .ac-name{font-weight:500;color:#f3f4f6;flex:1}
 .ac-item .ac-addr{font-size:11px;color:#9ca3af}
+.ac-preset{background:rgba(37,99,235,.07);border-left:2px solid #2563eb}
+.ac-preset:hover{background:rgba(37,99,235,.15)}
+.ac-badge{display:inline-block;background:#1e3a5f;color:#60a5fa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.ac-sep{padding:4px 12px;font-size:10px;color:#4b5563;background:#111827;font-weight:600;letter-spacing:.5px;border-bottom:1px solid #374151}
+/* 주소 입력행 */
+.addr-row{display:flex;gap:6px;align-items:flex-start}
+.addr-row .ac-wrap{flex:1;min-width:0}
+.addr-btn{background:#1f2937;border:1px solid #374151;color:#9ca3af;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12px;white-space:nowrap;transition:.15s;flex-shrink:0;font-family:inherit}.addr-btn:hover{border-color:#60a5fa;color:#60a5fa}
 
 /* 출근 체크 카드 */
 .commute-card{background:linear-gradient(135deg,#1e3a5f,#1f2937);border:1px solid #2563eb;border-radius:10px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -211,18 +219,28 @@ tr:hover td{background:rgba(96,165,250,.03)}
         <div class="row2" style="margin-top:10px">
           <div class="fg">
             <label>출발지</label>
-            <div class="ac-wrap">
-              <input type="text" class="fi" id="fFrom" placeholder="지역명 입력 (예: 용인)" autocomplete="off"
-                oninput="acSearch(this,'acFrom')" onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')">
-              <div class="ac-list" id="acFrom"></div>
+            <div class="addr-row">
+              <div class="ac-wrap">
+                <input type="text" class="fi" id="fFrom" placeholder="장소명 입력 또는 📍 검색" autocomplete="off"
+                  oninput="acSearch(this,'acFrom');updateNaverLink()"
+                  onfocus="acFocus(this,'acFrom')"
+                  onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')">
+                <div class="ac-list" id="acFrom"></div>
+              </div>
+              <button type="button" class="addr-btn" onclick="searchAddr('fFrom')">📍 검색</button>
             </div>
           </div>
           <div class="fg">
             <label>도착지</label>
-            <div class="ac-wrap">
-              <input type="text" class="fi" id="fTo" placeholder="지역명 입력 (예: 강남)" autocomplete="off"
-                oninput="acSearch(this,'acTo')" onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')">
-              <div class="ac-list" id="acTo"></div>
+            <div class="addr-row">
+              <div class="ac-wrap">
+                <input type="text" class="fi" id="fTo" placeholder="장소명 입력 또는 📍 검색" autocomplete="off"
+                  oninput="acSearch(this,'acTo');updateNaverLink()"
+                  onfocus="acFocus(this,'acTo')"
+                  onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')">
+                <div class="ac-list" id="acTo"></div>
+              </div>
+              <button type="button" class="addr-btn" onclick="searchAddr('fTo')">📍 검색</button>
             </div>
           </div>
         </div>
@@ -289,13 +307,26 @@ tr:hover td{background:rgba(96,165,250,.03)}
 <div class="ov" id="preMod">
   <div class="modal">
     <h3>⚙ 출퇴근 고정값 설정</h3>
-    <p>저장하면 출퇴근 선택 시 자동으로 채워집니다</p>
-    <div class="row2">
-      <div class="fg" style="margin-top:0"><label>출발지(집)</label><input class="fi" id="pFrom" placeholder="예) 용인시 처인구"></div>
-      <div class="fg" style="margin-top:0"><label>도착지(회사)</label><input class="fi" id="pTo" placeholder="예) 서울 강남구"></div>
+    <p>저장하면 출퇴근 선택 시 자동으로 채워집니다. 출발지·도착지는 📍 검색으로 정확한 주소를 찾을 수 있습니다.</p>
+    <div class="fg" style="margin-top:0">
+      <label>출발지 (집)</label>
+      <div class="addr-row">
+        <input class="fi" id="pFrom" placeholder="예) 용인시 처인구" style="flex:1">
+        <button type="button" class="addr-btn" onclick="searchAddr('pFrom')">📍 검색</button>
+      </div>
+    </div>
+    <div class="fg" style="margin-top:10px">
+      <label>도착지 (회사)</label>
+      <div class="addr-row">
+        <input class="fi" id="pTo" placeholder="예) 서울 강남구" style="flex:1">
+        <button type="button" class="addr-btn" onclick="searchAddr('pTo')">📍 검색</button>
+      </div>
     </div>
     <div class="row2" style="margin-top:10px">
-      <div class="fg" style="margin-top:0"><label>편도 거리(km)</label><input type="number" class="fi" id="pKm" placeholder="45"></div>
+      <div class="fg" style="margin-top:0">
+        <label>왕복 거리 (km) <span style="font-size:10px;color:#6b7280">· 출근+퇴근 합산</span></label>
+        <input type="number" class="fi" id="pKm" placeholder="예) 90 (편도 45×2)">
+      </div>
       <div class="fg" style="margin-top:0"><label>차량번호</label><input class="fi" id="pCar" placeholder="12가 3456"></div>
     </div>
     <div class="ma">
@@ -473,8 +504,9 @@ function typeChange() {
   if (t==='commute' && preset) {
     if(preset.from) document.getElementById('fFrom').value = preset.from;
     if(preset.to)   document.getElementById('fTo').value   = preset.to;
-    if(preset.km)   document.getElementById('fKm').value   = preset.km;
+    if(preset.km)   document.getElementById('fKm').value   = preset.km;  // 왕복 거리
     if(preset.car)  document.getElementById('fCar').value  = preset.car;
+    updateNaverLink();
   }
 }
 function clearForm() {
@@ -712,22 +744,88 @@ const REGIONS = [
 ];
 
 let acTimer = null;
+
+// ── 주소 검색 (Daum Postcode 팝업) ──
+function searchAddr(targetId) {
+  if (typeof daum === 'undefined' || !daum.Postcode) {
+    toast('주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.','err');
+    return;
+  }
+  new daum.Postcode({
+    oncomplete: function(data) {
+      // 도로명주소 우선, 없으면 지번주소
+      const addr = data.roadAddress || data.jibunAddress || data.address;
+      document.getElementById(targetId).value = addr;
+      updateNaverLink();
+      // 출발지/도착지 자동완성 숨기기
+      if (targetId === 'fFrom') hideAc('acFrom');
+      if (targetId === 'fTo')   hideAc('acTo');
+    }
+  }).open();
+}
+
+// ── 포커스 시 내 장소 표시 ──
+function acFocus(input, listId) {
+  if (!preset || (!preset.from && !preset.to)) return;
+  acSearch(input, listId);
+}
+
+// ── 자동완성: 내 장소(집/회사) + 행정구역 ──
 function acSearch(input, listId) {
   clearTimeout(acTimer);
   const q = input.value.trim();
   const list = document.getElementById(listId);
-  if (q.length < 1) { list.style.display='none'; return; }
+
   acTimer = setTimeout(() => {
-    const results = REGIONS.filter(r => r.replace(/ /g,'').includes(q.replace(/ /g,''))).slice(0,8);
-    if (!results.length) { list.style.display='none'; return; }
-    list.innerHTML = results.map(r =>
-      `<div class="ac-item" onmousedown="acPick('${input.id}','${listId}','${r}')">`+
-      `<span class="ac-name">${r.replace(q, '<b style="color:#60a5fa">'+q+'</b>')}</span>`+
-      `</div>`
-    ).join('');
+    const items = [];
+
+    // 1) 내 장소 (preset.from=집, preset.to=회사) 우선 표시
+    if (preset) {
+      const myPlaces = [];
+      if (preset.from) myPlaces.push({ badge: '🏠 집',  val: preset.from });
+      if (preset.to)   myPlaces.push({ badge: '🏢 회사', val: preset.to  });
+
+      const matched = myPlaces.filter(p =>
+        !q || p.val.replace(/ /g,'').includes(q.replace(/ /g,''))
+      );
+      if (matched.length) {
+        items.push('<div class="ac-sep">내 장소</div>');
+        matched.forEach(p => {
+          const safeVal = p.val.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          items.push(
+            `<div class="ac-item ac-preset" onmousedown="acPick('${input.id}','${listId}','${safeVal}')">` +
+            `<span class="ac-badge">${p.badge}</span>` +
+            `<span class="ac-name">${p.val}</span>` +
+            `</div>`
+          );
+        });
+      }
+    }
+
+    // 2) 행정구역 검색 (글자 입력이 있을 때만)
+    if (q.length >= 1) {
+      const results = REGIONS.filter(r =>
+        r.replace(/ /g,'').includes(q.replace(/ /g,''))
+      ).slice(0, 6);
+
+      if (results.length) {
+        if (items.length) items.push('<div class="ac-sep">지역</div>');
+        results.forEach(r => {
+          items.push(
+            `<div class="ac-item" onmousedown="acPick('${input.id}','${listId}','${r}')">` +
+            `<span class="ac-name">${r.replace(new RegExp(q.replace(/ /g,''),''), m => `<b style="color:#60a5fa">${m}</b>`)}</span>` +
+            `</div>`
+          );
+        });
+      }
+    }
+
+    if (!items.length) { list.style.display='none'; return; }
+    list.innerHTML = items.join('');
     list.style.display = 'block';
-  }, 120);
+  }, 80);
 }
+
 function acPick(inputId, listId, val) {
   document.getElementById(inputId).value = val;
   document.getElementById(listId).style.display = 'none';
@@ -749,14 +847,16 @@ function acKey(e, listId, inputId) {
   if(items[idx]) { items[idx].classList.add('ac-sel'); items[idx].style.background='#374151'; }
 }
 
-// 네이버 지도 길찾기 링크
+// ── 네이버 지도 길찾기 링크 ──
 function updateNaverLink() {
   const from = document.getElementById('fFrom')?.value.trim();
   const to   = document.getElementById('fTo')?.value.trim();
   const el   = document.getElementById('naverLink');
   if (!el) return;
   if (from && to) {
+    // 네이버 지도 자동차 길찾기 링크
     el.href = `https://map.naver.com/p/directions/-/-/-/car?c=15,0,0,0,dh&departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}`;
+    el.textContent = `🗺 네이버 지도 길찾기: ${from} → ${to}`;
     el.style.display = 'inline-flex';
   } else {
     el.style.display = 'none';
@@ -783,7 +883,7 @@ function updateCheckinCard() {
     card.className = 'commute-card';
     if (preset) {
       title.textContent = '🚗 오늘 출근 체크';
-      sub.textContent = `${preset.from||'?'} → ${preset.to||'?'} · ${preset.km||'?'}km (${preset.car||''})`;
+      sub.textContent = `${preset.from||'?'} → ${preset.to||'?'} 왕복 · ${preset.km||'?'}km (${preset.car||''})`;
     } else {
       title.textContent = '🚗 오늘 출근 체크';
       sub.textContent = '⚙ 출퇴근 설정에서 고정값을 먼저 설정해주세요';
