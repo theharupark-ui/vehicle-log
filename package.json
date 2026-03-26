@@ -1,8 +1,15 @@
-﻿{
+{
   "name": "vehicle-log",
   "version": "1.0.0",
+  "description": "더 맛있는 하루 차량업무일지",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
-  "dependencies": { "mongodb": "^6.3.0" },
-  "engines": { "node": ">=18.0.0" }
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
