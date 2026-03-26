@@ -244,9 +244,13 @@ tr:hover td{background:rgba(96,165,250,.03)}
             </div>
           </div>
         </div>
-        <div style="margin-top:6px">
-          <a id="naverLink" href="#" target="_blank" style="display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none">
-            🗺 네이버 지도 길찾기로 거리 확인하기 →
+        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button type="button" id="calcBtn" class="btn btn-gray btn-sm" onclick="autoCalcKm()" style="display:flex;align-items:center;gap:5px">
+            🚗 거리 자동계산
+          </button>
+          <span id="calcHint" style="font-size:11px;color:#6b7280">출퇴근은 왕복·외근은 편도로 자동 계산됩니다</span>
+          <a id="naverLink" href="#" target="_blank" style="display:none;align-items:center;gap:5px;background:#03C75A;color:#fff;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;margin-left:auto">
+            🗺 네이버 지도로 확인 →
           </a>
         </div>
         <div class="row3" style="margin-top:10px">
@@ -321,6 +325,12 @@ tr:hover td{background:rgba(96,165,250,.03)}
         <input class="fi" id="pTo" placeholder="예) 서울 강남구" style="flex:1">
         <button type="button" class="addr-btn" onclick="searchAddr('pTo')">📍 검색</button>
       </div>
+    </div>
+    <div style="margin-top:10px">
+      <button type="button" id="preCalcBtn" class="btn btn-gray btn-sm" onclick="autoCalcPresetKm()" style="display:flex;align-items:center;gap:5px">
+        🚗 왕복 거리 자동계산
+      </button>
+      <span id="preCalcHint" style="font-size:11px;color:#6b7280;display:block;margin-top:4px">집↔회사 주소를 입력한 뒤 클릭하면 왕복 거리가 자동 입력됩니다</span>
     </div>
     <div class="row2" style="margin-top:10px">
       <div class="fg" style="margin-top:0">
@@ -745,6 +755,101 @@ const REGIONS = [
 
 let acTimer = null;
 
+// ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
+async function geocodeAddr(addr) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=kr&accept-language=ko`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'vehiclelog-app/1.0' } });
+    const d = await r.json();
+    return d[0] ? { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name } : null;
+  } catch(e) { return null; }
+}
+
+async function getDrivingKm(fromCoord, toCoord) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromCoord.lon},${fromCoord.lat};${toCoord.lon},${toCoord.lat}?overview=false`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.code === 'Ok' && d.routes[0]) {
+      return Math.round(d.routes[0].distance / 100) / 10; // km, 소수점 1자리
+    }
+    return null;
+  } catch(e) { return null; }
+}
+
+async function autoCalcKm() {
+  const from = document.getElementById('fFrom').value.trim();
+  const to   = document.getElementById('fTo').value.trim();
+  if (!from || !to) { toast('출발지와 도착지를 먼저 입력하세요', 'err'); return; }
+
+  const btn  = document.getElementById('calcBtn');
+  const hint = document.getElementById('calcHint');
+  btn.textContent = '⏳ 계산 중...';
+  btn.disabled = true;
+  hint.textContent = '주소 검색 중...';
+
+  try {
+    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
+    if (!fc) { toast(`"${from}" 주소를 찾지 못했습니다. 더 구체적으로 입력해보세요`, 'err'); return; }
+    if (!tc) { toast(`"${to}" 주소를 찾지 못했습니다. 더 구체적으로 입력해보세요`, 'err'); return; }
+
+    hint.textContent = '경로 계산 중...';
+    const oneway = await getDrivingKm(fc, tc);
+    if (oneway === null) { toast('경로를 계산할 수 없습니다', 'err'); return; }
+
+    const type  = document.getElementById('fType').value;
+    const isCommute = type === 'commute';
+    const km    = isCommute ? Math.round(oneway * 2 * 10) / 10 : oneway;
+    document.getElementById('fKm').value = km;
+
+    const msg = isCommute
+      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)`
+      : `✅ 편도 ${km}km 자동입력`;
+    hint.textContent = msg;
+    toast(msg);
+  } catch(e) {
+    toast('거리 계산 중 오류가 발생했습니다', 'err');
+    hint.textContent = '계산 실패 — 직접 입력해주세요';
+  } finally {
+    btn.textContent = '🚗 거리 자동계산';
+    btn.disabled = false;
+  }
+}
+
+async function autoCalcPresetKm() {
+  const from = document.getElementById('pFrom').value.trim();
+  const to   = document.getElementById('pTo').value.trim();
+  if (!from || !to) { toast('집·회사 주소를 먼저 입력하세요', 'err'); return; }
+
+  const btn  = document.getElementById('preCalcBtn');
+  const hint = document.getElementById('preCalcHint');
+  btn.textContent = '⏳ 계산 중...';
+  btn.disabled = true;
+  hint.textContent = '주소 검색 중...';
+
+  try {
+    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
+    if (!fc) { toast(`"${from}" 주소를 찾지 못했습니다`, 'err'); return; }
+    if (!tc) { toast(`"${to}" 주소를 찾지 못했습니다`, 'err'); return; }
+
+    hint.textContent = '경로 계산 중...';
+    const oneway = await getDrivingKm(fc, tc);
+    if (oneway === null) { toast('경로를 계산할 수 없습니다', 'err'); return; }
+
+    const roundtrip = Math.round(oneway * 2 * 10) / 10;
+    document.getElementById('pKm').value = roundtrip;
+    const msg = `✅ 왕복 ${roundtrip}km 자동입력 (편도 ${oneway}km)`;
+    hint.textContent = msg;
+    toast(msg);
+  } catch(e) {
+    toast('거리 계산 중 오류가 발생했습니다', 'err');
+    hint.textContent = '계산 실패 — 직접 입력해주세요';
+  } finally {
+    btn.textContent = '🚗 왕복 거리 자동계산';
+    btn.disabled = false;
+  }
+}
+
 // ── 주소 검색 (Daum Postcode 팝업) ──
 function searchAddr(targetId) {
   if (typeof daum === 'undefined' || !daum.Postcode) {
@@ -854,9 +959,7 @@ function updateNaverLink() {
   const el   = document.getElementById('naverLink');
   if (!el) return;
   if (from && to) {
-    // 네이버 지도 자동차 길찾기 링크
     el.href = `https://map.naver.com/p/directions/-/-/-/car?c=15,0,0,0,dh&departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}`;
-    el.textContent = `🗺 네이버 지도 길찾기: ${from} → ${to}`;
     el.style.display = 'inline-flex';
   } else {
     el.style.display = 'none';
