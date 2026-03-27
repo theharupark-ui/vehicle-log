@@ -112,10 +112,35 @@ tr:hover td{background:rgba(96,165,250,.03)}
 .toast.on{opacity:1}
 
 @media(max-width:650px){
+  body{font-size:13px}
   .stats{grid-template-columns:1fr 1fr}
+  .stat{padding:12px 14px}
+  .stat-v{font-size:18px}
+  .stat-l{font-size:9px}
   .row2,.row3{grid-template-columns:1fr}
-  nav{padding:0 12px}
-  .wrap{padding:14px 10px}
+  nav{padding:0 10px;height:48px}
+  .nav-l{font-size:13px}
+  .nav-r{gap:5px}
+  .btn-sm{padding:4px 8px;font-size:12px}
+  .wrap{padding:12px 10px}
+  .mtitle{font-size:16px;min-width:100px}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{font-size:12px;padding:5px 12px;white-space:nowrap}
+  .mrow{flex-wrap:wrap;gap:6px}
+  .exp-btn{font-size:11px;padding:4px 8px}
+  /* 출근 카드 모바일 */
+  .commute-card{flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px}
+  .btn-checkin{width:100%;padding:10px;font-size:13px}
+  /* 테이블 가로 스크롤 */
+  #rTable,#lTable{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #rTable table,#lTable table{min-width:520px}
+  th{padding:7px 8px;font-size:9px}
+  td{padding:7px 8px;font-size:11px}
+  .card-b{padding:12px}
+  .card-h{padding:10px 14px}
+  /* 모달 */
+  .modal{padding:18px 16px}
 }
 
 /* AUTOCOMPLETE */
@@ -206,7 +231,14 @@ tr:hover td{background:rgba(96,165,250,.03)}
       <div class="card-h"><h3>새 기록 추가</h3></div>
       <div class="card-b">
         <div class="row3">
-          <div class="fg"><label>날짜</label><input type="date" class="fi" id="fDate"></div>
+          <div class="fg">
+            <label>날짜</label>
+            <div style="display:flex;gap:5px;align-items:center">
+              <input type="date" class="fi" id="fDate" style="flex:1">
+              <button type="button" class="addr-btn" onclick="setDateOffset(0)" title="오늘">오늘</button>
+              <button type="button" class="addr-btn" onclick="setDateOffset(-1)" title="어제">어제</button>
+            </div>
+          </div>
           <div class="fg"><label>유형</label>
             <select class="fs" id="fType" onchange="typeChange()">
               <option value="commute">🏠 출퇴근</option>
@@ -505,8 +537,10 @@ function renderSum() {
 }
 
 // ── 폼 ──
-function setToday() {
+function setToday() { setDateOffset(0); }
+function setDateOffset(days) {
   const t = new Date();
+  t.setDate(t.getDate() + days);
   document.getElementById('fDate').value = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
 }
 function typeChange() {
@@ -514,9 +548,14 @@ function typeChange() {
   if (t==='commute' && preset) {
     if(preset.from) document.getElementById('fFrom').value = preset.from;
     if(preset.to)   document.getElementById('fTo').value   = preset.to;
-    if(preset.km)   document.getElementById('fKm').value   = preset.km;  // 왕복 거리
+    // 왕복 거리를 편도로 나눠서 입력 (레코드 1건당 편도)
+    if(preset.km) {
+      const oneKm = Math.round(Number(preset.km)/2*10)/10;
+      document.getElementById('fKm').value = oneKm;
+    }
     if(preset.car)  document.getElementById('fCar').value  = preset.car;
     updateNaverLink();
+    toast(`출퇴근 자동입력 ✓ (편도 ${Math.round(Number(preset.km||0)/2*10)/10}km)`);
   }
 }
 function clearForm() {
@@ -757,18 +796,33 @@ let acTimer = null;
 
 // ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
 async function geocodeAddr(addr) {
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=kr&accept-language=ko`;
-    const r = await fetch(url, { headers: { 'User-Agent': 'vehiclelog-app/1.0' } });
-    const d = await r.json();
-    return d[0] ? { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name } : null;
-  } catch(e) { return null; }
+  // 한국 주소 인식률을 높이기 위해 여러 형식으로 재시도
+  const queries = [
+    addr,
+    addr + ' 대한민국',
+    addr.replace(/(\S+시)\s/g,'$1, ').replace(/(\S+구)\s/g,'$1, ') + ', 대한민국',
+  ];
+  for (const q of queries) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3&countrycodes=kr&accept-language=ko`;
+      const r = await fetch(url, { headers: { 'User-Agent': 'vehiclelog-app/1.0' }, signal: ctrl.signal });
+      clearTimeout(tid);
+      const d = await r.json();
+      if (d[0]) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name };
+    } catch(e) { /* 다음 형식으로 재시도 */ }
+  }
+  return null;
 }
 
 async function getDrivingKm(fromCoord, toCoord) {
   try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 10000);
     const url = `https://router.project-osrm.org/route/v1/driving/${fromCoord.lon},${fromCoord.lat};${toCoord.lon},${toCoord.lat}?overview=false`;
-    const r = await fetch(url);
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
     const d = await r.json();
     if (d.code === 'Ok' && d.routes[0]) {
       return Math.round(d.routes[0].distance / 100) / 10; // km, 소수점 1자리
@@ -790,12 +844,24 @@ async function autoCalcKm() {
 
   try {
     const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
-    if (!fc) { toast(`"${from}" 주소를 찾지 못했습니다. 더 구체적으로 입력해보세요`, 'err'); return; }
-    if (!tc) { toast(`"${to}" 주소를 찾지 못했습니다. 더 구체적으로 입력해보세요`, 'err'); return; }
+    if (!fc) {
+      hint.textContent = '❌ 출발지를 찾지 못했습니다 — 더 구체적으로 입력하거나 📍 검색을 이용하세요';
+      toast(`"${from}" 주소 인식 실패 — 도로명주소로 입력해보세요`, 'err');
+      return;
+    }
+    if (!tc) {
+      hint.textContent = '❌ 도착지를 찾지 못했습니다 — 더 구체적으로 입력하거나 📍 검색을 이용하세요';
+      toast(`"${to}" 주소 인식 실패 — 도로명주소로 입력해보세요`, 'err');
+      return;
+    }
 
-    hint.textContent = '경로 계산 중...';
+    hint.textContent = `📍 ${fc.name.split(',')[0]} → ${tc.name.split(',')[0]} 경로 계산 중...`;
     const oneway = await getDrivingKm(fc, tc);
-    if (oneway === null) { toast('경로를 계산할 수 없습니다', 'err'); return; }
+    if (oneway === null) {
+      hint.textContent = '❌ 경로 계산 서버 응답 없음 — 네이버 지도로 직접 확인 후 입력하세요';
+      toast('경로 계산 실패 — 네이버 지도로 확인 후 직접 입력해주세요', 'err');
+      return;
+    }
 
     const type  = document.getElementById('fType').value;
     const isCommute = type === 'commute';
@@ -809,7 +875,7 @@ async function autoCalcKm() {
     toast(msg);
   } catch(e) {
     toast('거리 계산 중 오류가 발생했습니다', 'err');
-    hint.textContent = '계산 실패 — 직접 입력해주세요';
+    hint.textContent = '❌ 계산 실패 — 📍 검색 후 네이버 지도로 확인하세요';
   } finally {
     btn.textContent = '🚗 거리 자동계산';
     btn.disabled = false;
@@ -977,21 +1043,23 @@ function updateCheckinCard() {
   const title = document.getElementById('commuteTitle');
   const sub = document.getElementById('commuteSubTitle');
   if (alreadyDone) {
+    const roundKm = preset ? Number(preset.km||0) : 0;
     card.className = 'commute-card commute-done';
-    title.textContent = '✅ 오늘 출근 완료';
-    sub.textContent = today + ' · 출퇴근 기록이 등록됐습니다';
+    title.textContent = '✅ 오늘 출퇴근 완료';
+    sub.textContent = today + ` · 왕복 ${roundKm}km 등록됨 (출근 + 퇴근 각 ${Math.round(roundKm/2*10)/10}km)`;
     btn.textContent = '등록됨';
     btn.className = 'btn-checkin done';
   } else {
     card.className = 'commute-card';
     if (preset) {
-      title.textContent = '🚗 오늘 출근 체크';
-      sub.textContent = `${preset.from||'?'} → ${preset.to||'?'} 왕복 · ${preset.km||'?'}km (${preset.car||''})`;
+      const roundKm = Number(preset.km||0);
+      title.textContent = '🚗 오늘 출퇴근 등록';
+      sub.textContent = `${preset.from||'?'} ↔ ${preset.to||'?'} · 왕복 ${roundKm}km (${preset.car||''}) — 버튼 클릭 시 출근+퇴근 자동 2건 등록`;
     } else {
-      title.textContent = '🚗 오늘 출근 체크';
+      title.textContent = '🚗 오늘 출퇴근 등록';
       sub.textContent = '⚙ 출퇴근 설정에서 고정값을 먼저 설정해주세요';
     }
-    btn.textContent = '✅ 출근 등록';
+    btn.textContent = '✅ 출퇴근 등록';
     btn.className = 'btn-checkin';
   }
 }
@@ -1006,18 +1074,26 @@ async function doCheckin() {
   if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
   const today = todayStr();
   const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute');
-  if (already) { toast('오늘 출근이 이미 등록됐습니다'); return; }
-  const r = { emp, date:today, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:preset.km||'', fuel:'', client:'', memo:'출근' };
-  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-  if (res.ok) {
-    D = res.data;
-    // 월 표시를 오늘로 맞춤
+  if (already) { toast('오늘 출퇴근이 이미 등록됐습니다'); return; }
+
+  // 왕복거리를 편도로 나눔 (preset.km이 왕복으로 저장되어 있음)
+  const roundKm = Number(preset.km || 0);
+  const oneKm   = Math.round(roundKm / 2 * 10) / 10;
+
+  // 출근 (집→회사)
+  const r1 = { emp, date:today, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:oneKm, fuel:'', client:'', memo:'출근' };
+  // 퇴근 (회사→집)
+  const r2 = { emp, date:today, type:'commute', car:preset.car||'', from:preset.to||'', to:preset.from||'', km:oneKm, fuel:'', client:'', memo:'퇴근' };
+
+  const res1 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r1)});
+  if (res1.ok) D = res1.data;
+  const res2 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r2)});
+  if (res2.ok) {
+    D = res2.data;
     const now = new Date();
     yr = now.getFullYear(); mo = now.getMonth()+1;
-    updMonth();
-    render();
-    updateCheckinCard();
-    toast('출근 등록됨 ✓ 오늘 외근이 있으면 아래 폼에 추가하세요');
+    updMonth(); render(); updateCheckinCard();
+    toast(`출퇴근 등록됨 ✓ 왕복 ${roundKm}km (출근 + 퇴근 각 ${oneKm}km)`);
   }
 }
 
