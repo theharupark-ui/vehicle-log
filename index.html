@@ -504,7 +504,7 @@ function render() {
 
   // stats
   const km   = recs.reduce((s,r)=>s+Number(r.km||0),0);
-  const com  = recs.filter(r=>r.type==='commute').length;
+  const com  = new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size;
   const biz  = recs.filter(r=>r.type==='business').length;
   const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
   document.getElementById('sKm').innerHTML  = `${num(km)}<span class="stat-u">km</span>`;
@@ -553,7 +553,7 @@ function renderSum() {
   document.getElementById('sGrid').innerHTML = D.employees.map(e => {
     const recs = D.records.filter(r => r.emp===e && r.date?.startsWith(`${yr}-${pad(mo)}`));
     const km   = recs.reduce((s,r)=>s+Number(r.km||0),0);
-    const com  = recs.filter(r=>r.type==='commute').length;
+    const com  = new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size;
     const biz  = recs.filter(r=>r.type==='business').length;
     const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
     return `<div class="ec">
@@ -733,7 +733,7 @@ function expPDF() {
   const bc={commute:'#2563eb',business:'#ea580c',fuel:'#16a34a'};
   const bg={commute:'#dbeafe',business:'#ffedd5',fuel:'#dcfce7'};
   const km=recs.reduce((s,r)=>s+Number(r.km||0),0);
-  const com=recs.filter(r=>r.type==='commute').length;
+  const com=new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size;
   const biz=recs.filter(r=>r.type==='business').length;
   const fl=recs.reduce((s,r)=>s+Number(r.fuel||0),0);
   const w=window.open('','_blank','width=900,height=700');
