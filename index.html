@@ -120,8 +120,10 @@ tr:hover td{background:rgba(96,165,250,.03)}
   .row2,.row3{grid-template-columns:1fr}
   nav{padding:0 10px;height:48px}
   .nav-l{font-size:13px}
-  .nav-r{gap:5px}
+  .nav-r{gap:4px}
   .btn-sm{padding:4px 8px;font-size:12px}
+  .nav-r .btn-sm{font-size:10px;padding:3px 6px}
+  .nav-r select.emp-sel{font-size:11px;padding:4px 6px;max-width:88px}
   .wrap{padding:12px 10px}
   .mtitle{font-size:16px;min-width:100px}
   .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;scrollbar-width:none}
@@ -196,6 +198,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <button class="tab on" onclick="tab('입력')">📋 기록입력</button>
     <button class="tab" onclick="tab('목록')">📂 내 기록</button>
     <button class="tab" onclick="tab('요약')">📊 월별요약</button>
+    <button class="tab" onclick="tab('차량')">🚗 차량관리</button>
   </div>
 
   <div class="mrow">
@@ -354,6 +357,50 @@ tr:hover td{background:rgba(96,165,250,.03)}
   <div id="tab-요약" style="display:none">
     <div class="sgrid" id="sGrid"></div>
   </div>
+
+  <!-- 차량 탭 -->
+  <div id="tab-차량" style="display:none">
+
+    <!-- 차량 등록 -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-h"><h3>🚗 차량 등록</h3></div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:8px;align-items:end">
+          <div class="fg" style="margin-top:0"><label>번호판</label><input type="text" class="fi" id="vPlate" placeholder="12가 3456"></div>
+          <div class="fg" style="margin-top:0"><label>차종</label><input type="text" class="fi" id="vModel" placeholder="소나타, K5..."></div>
+          <div class="fg" style="margin-top:0"><label>연식</label><input type="number" class="fi" id="vYear" placeholder="2023" min="1990" max="2030"></div>
+          <button class="btn btn-blue" style="height:36px" onclick="addVehicle()">추가</button>
+        </div>
+        <div id="vList" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <!-- 계기판 기록 -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-h">
+        <h3>📏 계기판 기록</h3>
+        <span style="font-size:12px;color:#6b7280" id="odomMonth"></span>
+      </div>
+      <div class="card-b">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
+          <div class="fg" style="margin-top:0"><label>차량</label>
+            <select class="fs" id="odomCar"></select>
+          </div>
+          <div class="fg" style="margin-top:0"><label>월초 계기판(km)</label><input type="number" class="fi" id="odomStart" placeholder="12000" min="0"></div>
+          <div class="fg" style="margin-top:0"><label>월말 계기판(km)</label><input type="number" class="fi" id="odomEnd" placeholder="12850" min="0"></div>
+          <button class="btn btn-blue" style="height:36px" onclick="saveOdometer()">저장</button>
+        </div>
+        <div id="odomList" style="margin-top:14px"></div>
+      </div>
+    </div>
+
+    <!-- 월별 운행 분석 -->
+    <div class="card">
+      <div class="card-h"><h3>📊 이번 달 운행 분석</h3></div>
+      <div id="vAnalysis" class="card-b"></div>
+    </div>
+
+  </div>
 </div>
 
 <!-- 사원관리 모달 -->
@@ -487,10 +534,12 @@ function goNow() { yr=new Date().getFullYear(); mo=new Date().getMonth()+1; updM
 // ── 탭 ──
 function tab(name) {
   curTab = name;
-  ['입력','목록','요약'].forEach(t => {
+  const TABS = ['입력','목록','요약','차량'];
+  TABS.forEach((t,i) => {
     document.getElementById('tab-'+t).style.display = t===name?'block':'none';
-    document.querySelectorAll('.tab')[['입력','목록','요약'].indexOf(t)].className = 'tab'+(t===name?' on':'');
+    document.querySelectorAll('.tab')[i].className = 'tab'+(t===name?' on':'');
   });
+  if (name==='차량') renderVehicleTab();
   render();
 }
 
@@ -514,6 +563,7 @@ function render() {
   document.getElementById('rCnt').textContent = recs.length+'건';
 
   updateCheckinCard();
+  if (curTab==='차량') { renderVehicleTab(); return; }
   if (curTab==='입력') renderTable(recs,'rTable');
   if (curTab==='목록') {
     document.getElementById('listTitle').textContent = `${emp} — ${yr}년 ${mo}월`;
@@ -1260,6 +1310,151 @@ async function doPastCheckin() {
     msgEl.style.color = '#34d399';
     toast(`${date} 출퇴근 등록됨 ✓`);
   }
+}
+
+// ══════════════════════════════════════════
+// ── 차량 탭 ──
+// ══════════════════════════════════════════
+
+async function addVehicle() {
+  const plate = document.getElementById('vPlate').value.trim();
+  const model = document.getElementById('vModel').value.trim();
+  const year  = document.getElementById('vYear').value.trim();
+  if (!plate) { toast('번호판을 입력해주세요','err'); return; }
+  const res = await api('/api/vehicle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate,model,year})});
+  if (res.ok) {
+    D = res.data;
+    document.getElementById('vPlate').value = '';
+    document.getElementById('vModel').value = '';
+    document.getElementById('vYear').value  = '';
+    renderVehicleTab();
+    toast(`${plate} 등록됨 ✓`);
+  } else { toast(res.msg||'등록 실패','err'); }
+}
+
+async function deleteVehicle(plate) {
+  if (!confirm(`"${plate}" 차량을 삭제할까요?`)) return;
+  const res = await api(`/api/vehicle/${encodeURIComponent(plate)}`,{method:'DELETE'});
+  if (res.ok) { D = res.data; renderVehicleTab(); toast(`${plate} 삭제됨`); }
+}
+
+async function saveOdometer() {
+  const plate = document.getElementById('odomCar').value;
+  const start = Number(document.getElementById('odomStart').value);
+  const end   = Number(document.getElementById('odomEnd').value);
+  const month = `${yr}-${pad(mo)}`;
+  if (!plate) { toast('차량을 선택해주세요','err'); return; }
+  if (!start && !end) { toast('계기판 수치를 입력해주세요','err'); return; }
+  if (end && start && end < start) { toast('월말이 월초보다 작습니다','err'); return; }
+  const res = await api('/api/odometer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate,month,start,end})});
+  if (res.ok) { D = res.data; renderVehicleTab(); toast('계기판 기록 저장됨 ✓'); }
+}
+
+async function deleteOdometer(id) {
+  const res = await api(`/api/odometer/${id}`,{method:'DELETE'});
+  if (res.ok) { D = res.data; renderVehicleTab(); }
+}
+
+function renderVehicleTab() {
+  const vehicles = D.vehicles || [];
+  const odometer = D.odometer || [];
+  const month    = `${yr}-${pad(mo)}`;
+
+  // ① 차량 목록
+  const vList = document.getElementById('vList');
+  if (!vehicles.length) {
+    vList.innerHTML = '<div style="color:#4b5563;font-size:12px;text-align:center;padding:12px">등록된 차량이 없습니다</div>';
+  } else {
+    vList.innerHTML = `<table><thead><tr>
+      <th>번호판</th><th>차종</th><th>연식</th><th></th>
+    </tr></thead><tbody>
+    ${vehicles.map(v=>`<tr>
+      <td style="font-weight:600;color:#60a5fa">${v.plate}</td>
+      <td>${v.model||'-'}</td>
+      <td>${v.year||'-'}</td>
+      <td><button class="btn-red" onclick="deleteVehicle('${v.plate}')">삭제</button></td>
+    </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  // ② 계기판 차량 선택 드롭다운 갱신
+  const odomCar = document.getElementById('odomCar');
+  const prev = odomCar.value;
+  odomCar.innerHTML = vehicles.map(v=>`<option value="${v.plate}">${v.plate}${v.model?' ('+v.model+')':''}</option>`).join('') || '<option value="">— 차량 없음 —</option>';
+  if (prev) odomCar.value = prev;
+  document.getElementById('odomMonth').textContent = `${yr}년 ${mo}월`;
+
+  // ③ 이번 달 계기판 기록 목록
+  const monthOdom = odometer.filter(o=>o.month===month);
+  const odomList  = document.getElementById('odomList');
+  if (!monthOdom.length) {
+    odomList.innerHTML = '<div style="color:#4b5563;font-size:12px;text-align:center;padding:8px">이번 달 계기판 기록 없음</div>';
+  } else {
+    // 저장된 값 자동 채우기
+    const sel = monthOdom.find(o=>o.plate===odomCar.value);
+    if (sel) { document.getElementById('odomStart').value=sel.start||''; document.getElementById('odomEnd').value=sel.end||''; }
+    odomList.innerHTML = `<table><thead><tr>
+      <th>차량</th><th>월초(km)</th><th>월말(km)</th><th>계기판 주행</th><th></th>
+    </tr></thead><tbody>
+    ${monthOdom.map(o=>{
+      const driven = o.end && o.start ? o.end - o.start : null;
+      return `<tr>
+        <td style="color:#60a5fa;font-weight:600">${o.plate}</td>
+        <td>${o.start ? num(o.start) : '-'}</td>
+        <td>${o.end ? num(o.end) : '-'}</td>
+        <td style="color:#34d399;font-weight:600">${driven!==null ? num(driven)+'km' : '-'}</td>
+        <td><button class="btn-red" onclick="deleteOdometer('${o.id}')">삭제</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`;
+  }
+
+  // ④ 운행 분석
+  const analysis = document.getElementById('vAnalysis');
+  if (!vehicles.length) {
+    analysis.innerHTML = '<div class="empty">차량을 먼저 등록해주세요</div>';
+    return;
+  }
+  analysis.innerHTML = vehicles.map(v => {
+    const odo     = odometer.find(o=>o.plate===v.plate && o.month===month);
+    const recKm   = (D.records||[]).filter(r=>r.car===v.plate && r.date?.startsWith(month)).reduce((s,r)=>s+Number(r.km||0),0);
+    const recFuel = (D.records||[]).filter(r=>r.car===v.plate && r.date?.startsWith(month)).reduce((s,r)=>s+Number(r.fuel||0),0);
+    const odomKm  = odo && odo.end && odo.start ? odo.end - odo.start : null;
+    const diff    = odomKm !== null ? odomKm - recKm : null;
+    const effKm   = recFuel > 0 && recKm > 0 ? Math.round(recKm / (recFuel/1650) * 10) / 10 : null; // 가솔린 기준 L당 1650원 추정
+    const fuelL   = recFuel > 0 ? Math.round(recFuel/1650*10)/10 : null;
+
+    return `<div style="background:#111827;border:1px solid #374151;border-radius:10px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:15px;font-weight:700;color:#60a5fa">${v.plate}</span>
+        <span style="font-size:11px;color:#6b7280">${v.model||''} ${v.year||''}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
+        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">기록 주행</div>
+          <div style="font-size:18px;font-weight:700;color:#60a5fa">${num(recKm)}<span style="font-size:11px;color:#9ca3af"> km</span></div>
+        </div>
+        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">계기판 주행</div>
+          <div style="font-size:18px;font-weight:700;color:#34d399">${odomKm!==null?num(odomKm):'—'}<span style="font-size:11px;color:#9ca3af">${odomKm!==null?' km':''}</span></div>
+        </div>
+        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">미기록 주행</div>
+          <div style="font-size:18px;font-weight:700;color:${diff!==null&&diff>0?'#f87171':'#9ca3af'}">${diff!==null?num(diff):'—'}<span style="font-size:11px;color:#9ca3af">${diff!==null?' km':''}</span></div>
+        </div>
+        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">주유금액</div>
+          <div style="font-size:18px;font-weight:700;color:#fbbf24">${recFuel?num(recFuel):'—'}<span style="font-size:11px;color:#9ca3af">${recFuel?' 원':''}</span></div>
+        </div>
+        ${fuelL ? `<div style="background:#1f2937;border-radius:8px;padding:10px 12px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">연비 추정</div>
+          <div style="font-size:18px;font-weight:700;color:#a78bfa">${effKm||'—'}<span style="font-size:11px;color:#9ca3af"> km/L</span></div>
+          <div style="font-size:10px;color:#6b7280;margin-top:2px">주유 약 ${fuelL}L 기준</div>
+        </div>` : ''}
+      </div>
+      ${diff===null?`<div style="font-size:11px;color:#6b7280;margin-top:10px">💡 계기판 기록을 입력하면 미기록 주행을 확인할 수 있어요</div>`:''}
+    </div>`;
+  }).join('');
 }
 
 // ── 토스트 ──
