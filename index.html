@@ -936,19 +936,18 @@ async function geocodeAddr(addr) {
   return null;
 }
 
-async function getDrivingKm(fromCoord, toCoord) {
-  try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 10000);
-    const url = `https://router.project-osrm.org/route/v1/driving/${fromCoord.lon},${fromCoord.lat};${toCoord.lon},${toCoord.lat}?overview=false`;
-    const r = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(tid);
-    const d = await r.json();
-    if (d.code === 'Ok' && d.routes[0]) {
-      return Math.round(d.routes[0].distance / 100) / 10; // km, 소수점 1자리
-    }
-    return null;
-  } catch(e) { return null; }
+// 하버사인 공식: 두 좌표 간 직선거리(km)
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+// 직선거리 × 1.3 (한국 도로 우회 보정) — 외부 서버 불필요, 즉시 계산
+function getDrivingKm(fromCoord, toCoord) {
+  const straight = haversineKm(fromCoord, toCoord);
+  return Math.round(straight * 1.3 * 10) / 10;
 }
 
 async function autoCalcKm() {
@@ -977,24 +976,20 @@ async function autoCalcKm() {
 
     const approxWarn = (fc.approx || tc.approx)
       ? ` ⚠️ 상세주소 미인식 → 구/동 중심점 기준 근사치` : '';
-    hint.textContent = `📍 ${fc.matchedQuery||fc.name.split(',')[0]} → ${tc.matchedQuery||tc.name.split(',')[0]} 경로 계산 중...`;
-    const oneway = await getDrivingKm(fc, tc);
-    if (oneway === null) {
-      hint.textContent = '❌ 경로 계산 서버 응답 없음 — 네이버 지도로 직접 확인 후 입력하세요';
-      toast('경로 계산 실패 — 네이버 지도로 확인 후 직접 입력해주세요', 'err');
-      return;
-    }
+    hint.textContent = `📍 ${fc.matchedQuery||fc.name.split(',')[0]} → ${tc.matchedQuery||tc.name.split(',')[0]} 거리 계산 중...`;
+    const oneway = getDrivingKm(fc, tc);
 
     const type  = document.getElementById('fType').value;
     const isCommute = type === 'commute';
     const km    = isCommute ? Math.round(oneway * 2 * 10) / 10 : oneway;
     document.getElementById('fKm').value = km;
 
+    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
     const msg = isCommute
-      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)${approxWarn}`
-      : `✅ 편도 ${km}km 자동입력${approxWarn}`;
+      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)${approxNote}`
+      : `✅ 편도 ${km}km 자동입력${approxNote}`;
     hint.textContent = msg;
-    toast(approxWarn ? `${km}km 입력됨 (근사치 — 네이버 지도로 확인 권장)` : msg);
+    toast(approxNote ? `${km}km 입력됨${approxNote} — 네이버 지도로 확인 권장` : msg);
   } catch(e) {
     toast('거리 계산 중 오류가 발생했습니다', 'err');
     hint.textContent = '❌ 계산 실패 — 📍 검색 후 네이버 지도로 확인하세요';
@@ -1020,13 +1015,11 @@ async function autoCalcPresetKm() {
     if (!fc) { toast(`"${from}" 주소를 찾지 못했습니다`, 'err'); return; }
     if (!tc) { toast(`"${to}" 주소를 찾지 못했습니다`, 'err'); return; }
 
-    hint.textContent = '경로 계산 중...';
-    const oneway = await getDrivingKm(fc, tc);
-    if (oneway === null) { toast('경로를 계산할 수 없습니다', 'err'); return; }
-
+    const oneway = getDrivingKm(fc, tc);
     const roundtrip = Math.round(oneway * 2 * 10) / 10;
     document.getElementById('pKm').value = roundtrip;
-    const msg = `✅ 왕복 ${roundtrip}km 자동입력 (편도 ${oneway}km)`;
+    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
+    const msg = `✅ 왕복 ${roundtrip}km 자동입력 (편도 ${oneway}km)${approxNote}`;
     hint.textContent = msg;
     toast(msg);
   } catch(e) {
