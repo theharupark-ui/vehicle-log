@@ -896,20 +896,30 @@ function updateApiKeyUI() {
 // ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
 // 주소를 점진적으로 줄여가며 검색 (번길→로→구→시 순으로 단계 축소)
 function addrFallbacks(addr) {
+  const add = (list, s) => { if (s && s.trim()) { list.push(s.trim()); list.push(s.trim() + ' 대한민국'); } };
   const list = [addr, addr + ' 대한민국'];
-  // 건물번호 제거: "고림로162번길 15" → "고림로162번길"
-  const noBuilding = addr.replace(/\s+\d+(-\d+)?$/, '');
-  if (noBuilding !== addr) { list.push(noBuilding); list.push(noBuilding + ' 대한민국'); }
-  // 번길 제거: "고림로162번길" → "고림로"
-  const noSideStreet = addr.replace(/\s+\S+번길(\s+\d+(-\d+)?)?$/, '');
-  if (noSideStreet !== addr) { list.push(noSideStreet); list.push(noSideStreet + ' 대한민국'); }
-  // 로/길 제거 (구 단위만): "경기 용인시 처인구 고림로162번길 15" → "경기 용인시 처인구"
-  const toGu = addr.match(/^(.+?[시군구])\s/);
-  if (toGu) { list.push(toGu[1]); list.push(toGu[1] + ' 대한민국'); }
-  // 시 단위: "경기 용인시"
-  const toSi = addr.match(/^(.+?[시군])\s/);
-  if (toSi) { list.push(toSi[1]); list.push(toSi[1] + ' 대한민국'); }
-  return [...new Set(list)]; // 중복 제거
+  const parts = addr.trim().split(/\s+/);
+
+  // ① 건물번호 제거 (끝 숫자)
+  if (/^\d/.test(parts[parts.length - 1])) add(list, parts.slice(0, -1).join(' '));
+
+  // ② 번길 포함 단어부터 잘라내기 ("경기 용인시 처인구 고림로162번길 15" → "경기 용인시 처인구")
+  const bunIdx = parts.findIndex(p => p.includes('번길'));
+  if (bunIdx > 0) add(list, parts.slice(0, bunIdx).join(' '));
+
+  // ③ 로/길 제거 (구 단위까지만)
+  const streetIdx = parts.findIndex(p => /[로길]$/.test(p));
+  if (streetIdx > 0) add(list, parts.slice(0, streetIdx).join(' '));
+
+  // ④ 구/군 단위 (예: "경기 용인시 처인구")
+  const guIdx = parts.findIndex(p => /[구군]$/.test(p));
+  if (guIdx >= 0) add(list, parts.slice(0, guIdx + 1).join(' '));
+
+  // ⑤ 시/특별시/광역시 단위 (예: "경기 용인시" 또는 "서울시")
+  const siIdx = parts.findIndex(p => /시$/.test(p));
+  if (siIdx >= 0) add(list, parts.slice(0, siIdx + 1).join(' '));
+
+  return [...new Set(list)];
 }
 
 async function geocodeAddr(addr) {
@@ -1191,24 +1201,17 @@ async function doCheckin() {
   const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute');
   if (already) { toast('오늘 출퇴근이 이미 등록됐습니다'); return; }
 
-  // 왕복거리를 편도로 나눔 (preset.km이 왕복으로 저장되어 있음)
   const roundKm = Number(preset.km || 0);
-  const oneKm   = Math.round(roundKm / 2 * 10) / 10;
+  // 출퇴근 1건(왕복)으로 저장 — 2건 분리 시 한 건 누락 문제 방지
+  const r = { emp, date:today, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:roundKm, fuel:'', client:'', memo:'출퇴근' };
 
-  // 출근 (집→회사)
-  const r1 = { emp, date:today, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:oneKm, fuel:'', client:'', memo:'출근' };
-  // 퇴근 (회사→집)
-  const r2 = { emp, date:today, type:'commute', car:preset.car||'', from:preset.to||'', to:preset.from||'', km:oneKm, fuel:'', client:'', memo:'퇴근' };
-
-  const res1 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r1)});
-  if (res1.ok) D = res1.data;
-  const res2 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r2)});
-  if (res2.ok) {
-    D = res2.data;
+  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+  if (res.ok) {
+    D = res.data;
     const now = new Date();
     yr = now.getFullYear(); mo = now.getMonth()+1;
     updMonth(); render(); updateCheckinCard();
-    toast(`출퇴근 등록됨 ✓ 왕복 ${roundKm}km (출근 + 퇴근 각 ${oneKm}km)`);
+    toast(`출퇴근 등록됨 ✓ 왕복 ${roundKm}km`);
   }
 }
 
@@ -1244,19 +1247,13 @@ async function doPastCheckin() {
   }
 
   const roundKm = Number(preset.km || 0);
-  const oneKm   = Math.round(roundKm / 2 * 10) / 10;
-
-  const r1 = { emp, date, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:oneKm, fuel:'', client:'', memo:'출근' };
-  const r2 = { emp, date, type:'commute', car:preset.car||'', from:preset.to||'', to:preset.from||'', km:oneKm, fuel:'', client:'', memo:'퇴근' };
+  const r = { emp, date, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:roundKm, fuel:'', client:'', memo:'출퇴근' };
 
   msgEl.textContent = '등록 중...'; msgEl.style.color = '#9ca3af';
 
-  const res1 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r1)});
-  if (res1.ok) D = res1.data;
-  const res2 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r2)});
-  if (res2.ok) {
-    D = res2.data;
-    // 해당 날짜의 월로 이동
+  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+  if (res.ok) {
+    D = res.data;
     const [y,m] = date.split('-').map(Number);
     yr = y; mo = m; updMonth(); render(); updateCheckinCard();
     msgEl.textContent = `✅ ${date} 출퇴근 등록 완료 (왕복 ${roundKm}km)`;
