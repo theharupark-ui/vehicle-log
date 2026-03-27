@@ -212,12 +212,26 @@ tr:hover td{background:rgba(96,165,250,.03)}
   <div id="tab-입력">
 
     <!-- 출근 체크 카드 -->
-    <div class="commute-card" id="commuteCard">
-      <div class="commute-info">
-        <div class="commute-title" id="commuteTitle">🚗 오늘 출근 체크</div>
-        <div class="commute-sub" id="commuteSubTitle">버튼을 누르면 출퇴근 기록이 자동으로 추가됩니다</div>
+    <div style="border:1px solid #2563eb;border-radius:10px;margin-bottom:18px;overflow:hidden">
+      <div class="commute-card" id="commuteCard" style="border:none;border-radius:0;margin-bottom:0">
+        <div class="commute-info">
+          <div class="commute-title" id="commuteTitle">🚗 오늘 출퇴근 등록</div>
+          <div class="commute-sub" id="commuteSubTitle">버튼을 누르면 출퇴근 기록이 자동으로 추가됩니다</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <button class="btn-checkin" id="checkinBtn" onclick="doCheckin()">✅ 출퇴근 등록</button>
+          <button type="button" onclick="togglePastCheckin()" style="background:transparent;border:none;color:#6b7280;font-size:11px;cursor:pointer;padding:0;white-space:nowrap" id="pastToggleBtn">📅 다른 날 등록 ▾</button>
+        </div>
       </div>
-      <button class="btn-checkin" id="checkinBtn" onclick="doCheckin()">✅ 출근 등록</button>
+      <!-- 다른 날 출퇴근 등록 패널 -->
+      <div id="pastCheckinPanel" style="display:none;background:#111827;border-top:1px solid #374151;padding:12px 20px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#9ca3af;white-space:nowrap">📅 날짜 선택:</span>
+          <input type="date" id="pastDate" class="fi" style="width:150px;padding:6px 10px;font-size:13px">
+          <button class="btn btn-blue btn-sm" onclick="doPastCheckin()">출퇴근 등록</button>
+          <span id="pastCheckinMsg" style="font-size:12px;color:#9ca3af"></span>
+        </div>
+      </div>
     </div>
 
     <div class="stats">
@@ -795,13 +809,26 @@ const REGIONS = [
 let acTimer = null;
 
 // ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
+// 주소를 점진적으로 줄여가며 검색 (번길→로→구→시 순으로 단계 축소)
+function addrFallbacks(addr) {
+  const list = [addr, addr + ' 대한민국'];
+  // 건물번호 제거: "고림로162번길 15" → "고림로162번길"
+  const noBuilding = addr.replace(/\s+\d+(-\d+)?$/, '');
+  if (noBuilding !== addr) { list.push(noBuilding); list.push(noBuilding + ' 대한민국'); }
+  // 번길 제거: "고림로162번길" → "고림로"
+  const noSideStreet = addr.replace(/\s+\S+번길(\s+\d+(-\d+)?)?$/, '');
+  if (noSideStreet !== addr) { list.push(noSideStreet); list.push(noSideStreet + ' 대한민국'); }
+  // 로/길 제거 (구 단위만): "경기 용인시 처인구 고림로162번길 15" → "경기 용인시 처인구"
+  const toGu = addr.match(/^(.+?[시군구])\s/);
+  if (toGu) { list.push(toGu[1]); list.push(toGu[1] + ' 대한민국'); }
+  // 시 단위: "경기 용인시"
+  const toSi = addr.match(/^(.+?[시군])\s/);
+  if (toSi) { list.push(toSi[1]); list.push(toSi[1] + ' 대한민국'); }
+  return [...new Set(list)]; // 중복 제거
+}
+
 async function geocodeAddr(addr) {
-  // 한국 주소 인식률을 높이기 위해 여러 형식으로 재시도
-  const queries = [
-    addr,
-    addr + ' 대한민국',
-    addr.replace(/(\S+시)\s/g,'$1, ').replace(/(\S+구)\s/g,'$1, ') + ', 대한민국',
-  ];
+  const queries = addrFallbacks(addr);
   for (const q of queries) {
     try {
       const ctrl = new AbortController();
@@ -810,8 +837,11 @@ async function geocodeAddr(addr) {
       const r = await fetch(url, { headers: { 'User-Agent': 'vehiclelog-app/1.0' }, signal: ctrl.signal });
       clearTimeout(tid);
       const d = await r.json();
-      if (d[0]) return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name };
-    } catch(e) { /* 다음 형식으로 재시도 */ }
+      if (d[0]) {
+        const approx = q !== addr && !q.endsWith('대한민국') ? false : (q === addr || q === addr+' 대한민국') ? false : true;
+        return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name, approx, matchedQuery: q };
+      }
+    } catch(e) { /* 다음 단계로 */ }
   }
   return null;
 }
@@ -855,7 +885,9 @@ async function autoCalcKm() {
       return;
     }
 
-    hint.textContent = `📍 ${fc.name.split(',')[0]} → ${tc.name.split(',')[0]} 경로 계산 중...`;
+    const approxWarn = (fc.approx || tc.approx)
+      ? ` ⚠️ 상세주소 미인식 → 구/동 중심점 기준 근사치` : '';
+    hint.textContent = `📍 ${fc.matchedQuery||fc.name.split(',')[0]} → ${tc.matchedQuery||tc.name.split(',')[0]} 경로 계산 중...`;
     const oneway = await getDrivingKm(fc, tc);
     if (oneway === null) {
       hint.textContent = '❌ 경로 계산 서버 응답 없음 — 네이버 지도로 직접 확인 후 입력하세요';
@@ -869,10 +901,10 @@ async function autoCalcKm() {
     document.getElementById('fKm').value = km;
 
     const msg = isCommute
-      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)`
-      : `✅ 편도 ${km}km 자동입력`;
+      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)${approxWarn}`
+      : `✅ 편도 ${km}km 자동입력${approxWarn}`;
     hint.textContent = msg;
-    toast(msg);
+    toast(approxWarn ? `${km}km 입력됨 (근사치 — 네이버 지도로 확인 권장)` : msg);
   } catch(e) {
     toast('거리 계산 중 오류가 발생했습니다', 'err');
     hint.textContent = '❌ 계산 실패 — 📍 검색 후 네이버 지도로 확인하세요';
@@ -1094,6 +1126,59 @@ async function doCheckin() {
     yr = now.getFullYear(); mo = now.getMonth()+1;
     updMonth(); render(); updateCheckinCard();
     toast(`출퇴근 등록됨 ✓ 왕복 ${roundKm}km (출근 + 퇴근 각 ${oneKm}km)`);
+  }
+}
+
+// ── 다른 날 출퇴근 등록 ──
+function togglePastCheckin() {
+  const panel = document.getElementById('pastCheckinPanel');
+  const btn   = document.getElementById('pastToggleBtn');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '📅 다른 날 등록 ▾' : '📅 다른 날 등록 ▴';
+  if (!isOpen) {
+    // 기본값: 어제
+    const y = new Date(); y.setDate(y.getDate()-1);
+    document.getElementById('pastDate').value = `${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
+    document.getElementById('pastCheckinMsg').textContent = '';
+  }
+}
+
+async function doPastCheckin() {
+  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
+  if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
+  const date = document.getElementById('pastDate').value;
+  if (!date) { toast('날짜를 선택해주세요','err'); return; }
+
+  const msgEl = document.getElementById('pastCheckinMsg');
+
+  // 이미 등록됐는지 확인
+  const already = D.records.some(r => r.emp===emp && r.date===date && r.type==='commute');
+  if (already) {
+    msgEl.textContent = `⚠️ ${date} 출퇴근이 이미 등록됐습니다`;
+    msgEl.style.color = '#f87171';
+    return;
+  }
+
+  const roundKm = Number(preset.km || 0);
+  const oneKm   = Math.round(roundKm / 2 * 10) / 10;
+
+  const r1 = { emp, date, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:oneKm, fuel:'', client:'', memo:'출근' };
+  const r2 = { emp, date, type:'commute', car:preset.car||'', from:preset.to||'', to:preset.from||'', km:oneKm, fuel:'', client:'', memo:'퇴근' };
+
+  msgEl.textContent = '등록 중...'; msgEl.style.color = '#9ca3af';
+
+  const res1 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r1)});
+  if (res1.ok) D = res1.data;
+  const res2 = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r2)});
+  if (res2.ok) {
+    D = res2.data;
+    // 해당 날짜의 월로 이동
+    const [y,m] = date.split('-').map(Number);
+    yr = y; mo = m; updMonth(); render(); updateCheckinCard();
+    msgEl.textContent = `✅ ${date} 출퇴근 등록 완료 (왕복 ${roundKm}km)`;
+    msgEl.style.color = '#34d399';
+    toast(`${date} 출퇴근 등록됨 ✓`);
   }
 }
 
