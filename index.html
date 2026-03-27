@@ -299,25 +299,22 @@ tr:hover td{background:rgba(96,165,250,.03)}
           <a id="naverLink" href="#" target="_blank" style="display:none;align-items:center;gap:5px;background:#03C75A;color:#fff;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;margin-left:auto">
             🗺 네이버지도 확인 →
           </a>
-          <button type="button" onclick="toggleApiKeyPanel()" style="background:transparent;border:none;color:#4b5563;font-size:11px;cursor:pointer;padding:0;margin-left:auto" id="apiKeyToggleBtn" title="카카오 API 키 설정">🔑 API키 설정</button>
+          <button type="button" onclick="toggleApiKeyPanel()" style="background:transparent;border:none;color:#4b5563;font-size:11px;cursor:pointer;padding:0;margin-left:auto" id="apiKeyToggleBtn" title="카카오 REST API 설정">🔑 서버 설정</button>
         </div>
-        <!-- 카카오 API 키 설정 패널 -->
+        <!-- 카카오 REST API 서버 설정 안내 패널 -->
         <div id="apiKeyPanel" style="display:none;margin-top:8px;background:#111827;border:1px solid #374151;border-radius:8px;padding:12px 14px">
-          <div style="font-size:12px;font-weight:600;color:#f3f4f6;margin-bottom:6px">🔑 카카오 REST API 키 설정</div>
-          <div style="font-size:11px;color:#9ca3af;margin-bottom:10px">
-            카카오 API 키를 입력하면 <b style="color:#60a5fa">번길·상세주소도 정확하게</b> 거리계산됩니다.<br>
-            무료 · 하루 300,000건 · 카카오 계정만 있으면 됨 →
-            <a href="https://developers.kakao.com/console/app" target="_blank" style="color:#60a5fa;text-decoration:underline">developers.kakao.com</a>
+          <div style="font-size:12px;font-weight:600;color:#f3f4f6;margin-bottom:6px">🔑 카카오 REST API 설정 (서버 환경변수)</div>
+          <div style="font-size:11px;color:#9ca3af;margin-bottom:8px">
+            서버에 카카오 REST API 키를 설정하면 <b style="color:#60a5fa">번길·상세주소도 정확하게</b> 거리계산됩니다. 무료 · 하루 300,000건<br>
+            브라우저가 아닌 <b style="color:#34d399">서버에서 직접 카카오에 요청</b>하므로 CORS 문제가 완전히 해결됩니다.
           </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <input type="password" id="kakaoKeyInput" class="fi" placeholder="REST API 키 입력 (예: abc1234def...)" style="flex:1;min-width:200px;font-size:12px">
-            <button class="btn btn-blue btn-sm" onclick="saveKakaoKey()">저장</button>
-            <button class="btn btn-gray btn-sm" onclick="clearKakaoKey()">삭제</button>
-          </div>
-          <div id="apiKeyStatus" style="font-size:11px;margin-top:6px;color:#9ca3af"></div>
-          <div style="font-size:10px;color:#4b5563;margin-top:8px;line-height:1.6">
-            📌 발급 방법: <a href="https://developers.kakao.com/console/app" target="_blank" style="color:#60a5fa">카카오 개발자 콘솔</a> → 앱 만들기 → [앱 키] 탭 → <b>REST API 키</b> 복사<br>
-            🔒 키는 이 기기 브라우저에만 저장되며 외부로 전송되지 않습니다
+          <div id="apiKeyStatus" style="font-size:12px;margin-bottom:8px;color:#9ca3af">🔄 서버 상태 확인 중...</div>
+          <div style="font-size:10px;color:#4b5563;line-height:1.9;background:#1f2937;padding:8px 10px;border-radius:6px">
+            📌 <b style="color:#9ca3af">Railway 환경변수 설정 방법:</b><br>
+            ① <a href="https://developers.kakao.com/console/app" target="_blank" style="color:#60a5fa">카카오 개발자 콘솔</a> → 앱 선택 → <b>[앱 키]</b> 탭 → <b style="color:#fbbf24">REST API 키</b> 복사<br>
+            ② <a href="https://railway.app" target="_blank" style="color:#60a5fa">Railway 대시보드</a> → 프로젝트 → <b>Variables</b> 탭 클릭<br>
+            ③ 변수명: <code style="color:#34d399">KAKAO_REST_KEY</code> / 값: 복사한 REST API 키 붙여넣기<br>
+            ④ <b>Add</b> 클릭 → 자동 재배포 완료 후 거리계산 테스트
           </div>
         </div>
         <div class="row3" style="margin-top:10px">
@@ -830,79 +827,70 @@ const REGIONS = [
 
 let acTimer = null;
 
-// ── 카카오 API 키 관리 ──
-function getKakaoKey() { return localStorage.getItem('vl_kakao_key') || ''; }
-function saveKakaoKey() {
-  const key = document.getElementById('kakaoKeyInput').value.trim();
-  if (!key) { showApiStatus('키를 입력해주세요', 'err'); return; }
-  localStorage.setItem('vl_kakao_key', key);
-  showApiStatus('✅ 카카오 API 키 저장됨 — 이제 거리계산이 정확해집니다!', 'ok');
-  updateApiKeyUI();
+// ── 카카오 REST API 서버 프록시 지오코딩 ──
+// 서버(Railway)에서 직접 카카오 REST API를 호출 — CORS 문제 완전 해결
+// 서버에 KAKAO_REST_KEY 환경변수가 설정돼 있어야 합니다.
+let _serverKakaoStatus = null; // null=미확인, 'ok'=활성, 'nokey'=키없음, 'err'=오류
+
+async function checkServerKakao() {
+  if (_serverKakaoStatus) return _serverKakaoStatus;
+  try {
+    const r = await fetch(`${window.location.origin}/api/geocode?q=서울시청`);
+    const d = await r.json();
+    _serverKakaoStatus = (d.ok || d.msg === 'NOT_FOUND') ? 'ok' : 'nokey';
+  } catch(e) { _serverKakaoStatus = 'err'; }
+  return _serverKakaoStatus;
 }
-function clearKakaoKey() {
-  localStorage.removeItem('vl_kakao_key');
-  document.getElementById('kakaoKeyInput').value = '';
-  showApiStatus('키가 삭제됐습니다 (Nominatim 모드로 전환)', '');
-  updateApiKeyUI();
+
+async function geocodeViaServer(addr) {
+  try {
+    const r = await fetch(`${window.location.origin}/api/geocode?q=${encodeURIComponent(addr)}`);
+    const d = await r.json();
+    if (d.ok) return { lat: d.lat, lon: d.lon, name: d.name, approx: false, matchedQuery: addr };
+  } catch(e) {}
+  return null;
 }
-function showApiStatus(msg, type) {
-  const el = document.getElementById('apiKeyStatus');
-  el.textContent = msg;
-  el.style.color = type==='ok' ? '#34d399' : type==='err' ? '#f87171' : '#9ca3af';
-}
+
 function toggleApiKeyPanel() {
   const panel = document.getElementById('apiKeyPanel');
   const isOpen = panel.style.display !== 'none';
   panel.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) {
-    const key = getKakaoKey();
-    if (key) document.getElementById('kakaoKeyInput').value = key;
-    updateApiKeyUI();
-  }
-}
-function updateApiKeyUI() {
-  const key = getKakaoKey();
-  const tag = document.getElementById('calcEngineTag');
-  const btn = document.getElementById('apiKeyToggleBtn');
-  if (key) {
-    tag.textContent = '카카오 지도'; tag.style.display = 'inline';
-    tag.style.background = 'rgba(255,210,0,.15)'; tag.style.color = '#fbbf24';
-    btn.textContent = '🔑 카카오 ✓';
-    btn.style.color = '#34d399';
-    showApiStatus('✅ 카카오 API 키 적용 중', 'ok');
-  } else {
-    tag.style.display = 'none';
-    btn.textContent = '🔑 API키 설정';
-    btn.style.color = '#4b5563';
+    const statusEl = document.getElementById('apiKeyStatus');
+    if (statusEl) {
+      statusEl.textContent = '🔄 서버 상태 확인 중...';
+      statusEl.style.color = '#9ca3af';
+      _serverKakaoStatus = null; // 강제 재확인
+      checkServerKakao().then(s => {
+        if (s === 'ok') {
+          statusEl.textContent = '✅ 서버에 카카오 REST API 키가 설정되어 있습니다 — 거리계산이 정상 작동합니다';
+          statusEl.style.color = '#34d399';
+        } else if (s === 'nokey') {
+          statusEl.textContent = '⚠️ 서버에 KAKAO_REST_KEY 환경변수가 없습니다 — 아래 안내를 따라 설정하세요';
+          statusEl.style.color = '#f87171';
+        } else {
+          statusEl.textContent = '❌ 서버에 연결할 수 없습니다';
+          statusEl.style.color = '#f87171';
+        }
+      });
+    }
   }
 }
 
-// ── 카카오 지오코딩 (API 키 있을 때) ──
-async function geocodeKakao(addr) {
-  const key = getKakaoKey();
-  if (!key) return null;
-  try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 8000);
-    const url = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addr)}&size=1`;
-    const r = await fetch(url, {
-      headers: { 'Authorization': 'KakaoAK ' + key },
-      signal: ctrl.signal
-    });
-    clearTimeout(tid);
-    if (r.status === 401) { toast('카카오 API 키가 잘못됐습니다 — 키를 확인해주세요', 'err'); return null; }
-    const d = await r.json();
-    // 도로명/지번 주소 좌표
-    const doc = d.documents?.[0];
-    if (doc) return { lat: parseFloat(doc.y), lon: parseFloat(doc.x), name: doc.address_name, approx: false, matchedQuery: addr };
-    // 주소로 안 찾으면 키워드 검색으로 재시도
-    const url2 = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(addr)}&size=1`;
-    const r2 = await fetch(url2, { headers: { 'Authorization': 'KakaoAK ' + key }, signal: new AbortController().signal });
-    const d2 = await r2.json();
-    const doc2 = d2.documents?.[0];
-    if (doc2) return { lat: parseFloat(doc2.y), lon: parseFloat(doc2.x), name: doc2.place_name, approx: false, matchedQuery: addr };
-    return null;
-  } catch(e) { return null; }
+function updateApiKeyUI() {
+  const tag = document.getElementById('calcEngineTag');
+  const btn = document.getElementById('apiKeyToggleBtn');
+  checkServerKakao().then(s => {
+    if (!tag || !btn) return;
+    if (s === 'ok') {
+      tag.textContent = '카카오 지도'; tag.style.display = 'inline';
+      tag.style.background = 'rgba(255,210,0,.15)'; tag.style.color = '#fbbf24';
+      btn.textContent = '🔑 카카오 ✓'; btn.style.color = '#34d399';
+    } else {
+      tag.style.display = 'none';
+      btn.textContent = '🔑 서버 설정'; btn.style.color = '#4b5563';
+    }
+  });
 }
 
 // ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
@@ -925,11 +913,10 @@ function addrFallbacks(addr) {
 }
 
 async function geocodeAddr(addr) {
-  // 1순위: 카카오 API (키 있을 때) — 한국 주소 완벽 인식
-  if (getKakaoKey()) {
-    const kakaoResult = await geocodeKakao(addr);
-    if (kakaoResult) return kakaoResult;
-  }
+  // 1순위: 서버 프록시 (카카오 REST API — Railway KAKAO_REST_KEY 환경변수 필요)
+  const serverResult = await geocodeViaServer(addr);
+  if (serverResult) return serverResult;
+
   // 2순위: Nominatim (무료, 한국 상세주소 인식률 낮음) — 단계별 fallback
   const queries = addrFallbacks(addr);
   for (const q of queries) {

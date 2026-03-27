@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
@@ -67,6 +68,27 @@ function sendJSON(res, data, code = 200) {
   res.end(JSON.stringify(data));
 }
 
+// ── 카카오 REST API 서버사이드 호출 헬퍼 ──
+function kakaoFetch(apiPath) {
+  const restKey = process.env.KAKAO_REST_KEY;
+  if (!restKey) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const fullUrl = `https://dapi.kakao.com${apiPath}`;
+    const req = https.get(fullUrl, {
+      headers: { Authorization: `KakaoAK ${restKey}` }
+    }, (r) => {
+      let body = '';
+      r.on('data', c => body += c);
+      r.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch(e) { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+  });
+}
+
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -87,6 +109,47 @@ const server = http.createServer((req, res) => {
   // GET /api/data
   if (m === 'GET' && pathname === '/api/data') {
     sendJSON(res, db); return;
+  }
+
+  // GET /api/geocode?q=주소 (카카오 REST API 서버 프록시 — CORS 없음)
+  if (m === 'GET' && pathname === '/api/geocode') {
+    const q = (query.q || '').trim();
+    if (!q) { sendJSON(res, { ok: false, msg: 'NO_QUERY' }); return; }
+    const restKey = process.env.KAKAO_REST_KEY;
+    if (!restKey) { sendJSON(res, { ok: false, msg: 'NO_KEY' }); return; }
+
+    (async () => {
+      try {
+        // 1) 주소 검색 (도로명·지번 주소)
+        const a = await kakaoFetch(`/v2/local/search/address.json?query=${encodeURIComponent(q)}&size=1`);
+        if (a?.documents?.[0]) {
+          const d = a.documents[0];
+          const lat = parseFloat(d.y), lon = parseFloat(d.x);
+          if (lat && lon) {
+            console.log(`[지오코드] "${q}" → 주소검색 성공 (${lat}, ${lon})`);
+            sendJSON(res, { ok: true, lat, lon, name: d.address_name });
+            return;
+          }
+        }
+        // 2) 키워드 검색 (건물명, 장소명 등)
+        const k = await kakaoFetch(`/v2/local/search/keyword.json?query=${encodeURIComponent(q)}&size=1`);
+        if (k?.documents?.[0]) {
+          const d = k.documents[0];
+          const lat = parseFloat(d.y), lon = parseFloat(d.x);
+          if (lat && lon) {
+            console.log(`[지오코드] "${q}" → 키워드검색 성공 (${lat}, ${lon})`);
+            sendJSON(res, { ok: true, lat, lon, name: d.place_name });
+            return;
+          }
+        }
+        console.log(`[지오코드] "${q}" → 검색 실패`);
+        sendJSON(res, { ok: false, msg: 'NOT_FOUND' });
+      } catch(e) {
+        console.error('[지오코드] 오류:', e.message);
+        sendJSON(res, { ok: false, msg: e.message });
+      }
+    })();
+    return;
   }
 
   // POST /api/employee
@@ -146,6 +209,7 @@ initDB().then(() => {
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🚗 차량업무일지 서버 실행 중`);
     console.log(`📍 로컬: http://localhost:${PORT}`);
-    console.log(`📡 배포: Railway + MongoDB Atlas\n`);
+    console.log(`📡 배포: Railway + MongoDB Atlas`);
+    console.log(`🗺  카카오 geocode: ${process.env.KAKAO_REST_KEY ? '✅ 활성화' : '❌ KAKAO_REST_KEY 없음'}\n`);
   });
 });
