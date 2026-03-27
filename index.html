@@ -294,10 +294,31 @@ tr:hover td{background:rgba(96,165,250,.03)}
           <button type="button" id="calcBtn" class="btn btn-gray btn-sm" onclick="autoCalcKm()" style="display:flex;align-items:center;gap:5px">
             🚗 거리 자동계산
           </button>
+          <span id="calcEngineTag" style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(96,165,250,.12);color:#60a5fa;display:none"></span>
           <span id="calcHint" style="font-size:11px;color:#6b7280">출퇴근은 왕복·외근은 편도로 자동 계산됩니다</span>
           <a id="naverLink" href="#" target="_blank" style="display:none;align-items:center;gap:5px;background:#03C75A;color:#fff;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;margin-left:auto">
-            🗺 네이버 지도로 확인 →
+            🗺 네이버지도 확인 →
           </a>
+          <button type="button" onclick="toggleApiKeyPanel()" style="background:transparent;border:none;color:#4b5563;font-size:11px;cursor:pointer;padding:0;margin-left:auto" id="apiKeyToggleBtn" title="카카오 API 키 설정">🔑 API키 설정</button>
+        </div>
+        <!-- 카카오 API 키 설정 패널 -->
+        <div id="apiKeyPanel" style="display:none;margin-top:8px;background:#111827;border:1px solid #374151;border-radius:8px;padding:12px 14px">
+          <div style="font-size:12px;font-weight:600;color:#f3f4f6;margin-bottom:6px">🔑 카카오 REST API 키 설정</div>
+          <div style="font-size:11px;color:#9ca3af;margin-bottom:10px">
+            카카오 API 키를 입력하면 <b style="color:#60a5fa">번길·상세주소도 정확하게</b> 거리계산됩니다.<br>
+            무료 · 하루 300,000건 · 카카오 계정만 있으면 됨 →
+            <a href="https://developers.kakao.com/console/app" target="_blank" style="color:#60a5fa;text-decoration:underline">developers.kakao.com</a>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input type="password" id="kakaoKeyInput" class="fi" placeholder="REST API 키 입력 (예: abc1234def...)" style="flex:1;min-width:200px;font-size:12px">
+            <button class="btn btn-blue btn-sm" onclick="saveKakaoKey()">저장</button>
+            <button class="btn btn-gray btn-sm" onclick="clearKakaoKey()">삭제</button>
+          </div>
+          <div id="apiKeyStatus" style="font-size:11px;margin-top:6px;color:#9ca3af"></div>
+          <div style="font-size:10px;color:#4b5563;margin-top:8px;line-height:1.6">
+            📌 발급 방법: <a href="https://developers.kakao.com/console/app" target="_blank" style="color:#60a5fa">카카오 개발자 콘솔</a> → 앱 만들기 → [앱 키] 탭 → <b>REST API 키</b> 복사<br>
+            🔒 키는 이 기기 브라우저에만 저장되며 외부로 전송되지 않습니다
+          </div>
         </div>
         <div class="row3" style="margin-top:10px">
           <div class="fg"><label>주행거리(km)</label><input type="number" class="fi" id="fKm" placeholder="0" min="0"></div>
@@ -422,6 +443,7 @@ async function init() {
   }
   setToday();
   updMonth();
+  updateApiKeyUI(); // 카카오 API 키 상태 표시
   await reload();
   // 마지막 선택 사원 복원
   const last = localStorage.getItem('vl_emp');
@@ -808,6 +830,81 @@ const REGIONS = [
 
 let acTimer = null;
 
+// ── 카카오 API 키 관리 ──
+function getKakaoKey() { return localStorage.getItem('vl_kakao_key') || ''; }
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { showApiStatus('키를 입력해주세요', 'err'); return; }
+  localStorage.setItem('vl_kakao_key', key);
+  showApiStatus('✅ 카카오 API 키 저장됨 — 이제 거리계산이 정확해집니다!', 'ok');
+  updateApiKeyUI();
+}
+function clearKakaoKey() {
+  localStorage.removeItem('vl_kakao_key');
+  document.getElementById('kakaoKeyInput').value = '';
+  showApiStatus('키가 삭제됐습니다 (Nominatim 모드로 전환)', '');
+  updateApiKeyUI();
+}
+function showApiStatus(msg, type) {
+  const el = document.getElementById('apiKeyStatus');
+  el.textContent = msg;
+  el.style.color = type==='ok' ? '#34d399' : type==='err' ? '#f87171' : '#9ca3af';
+}
+function toggleApiKeyPanel() {
+  const panel = document.getElementById('apiKeyPanel');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    const key = getKakaoKey();
+    if (key) document.getElementById('kakaoKeyInput').value = key;
+    updateApiKeyUI();
+  }
+}
+function updateApiKeyUI() {
+  const key = getKakaoKey();
+  const tag = document.getElementById('calcEngineTag');
+  const btn = document.getElementById('apiKeyToggleBtn');
+  if (key) {
+    tag.textContent = '카카오 지도'; tag.style.display = 'inline';
+    tag.style.background = 'rgba(255,210,0,.15)'; tag.style.color = '#fbbf24';
+    btn.textContent = '🔑 카카오 ✓';
+    btn.style.color = '#34d399';
+    showApiStatus('✅ 카카오 API 키 적용 중', 'ok');
+  } else {
+    tag.style.display = 'none';
+    btn.textContent = '🔑 API키 설정';
+    btn.style.color = '#4b5563';
+  }
+}
+
+// ── 카카오 지오코딩 (API 키 있을 때) ──
+async function geocodeKakao(addr) {
+  const key = getKakaoKey();
+  if (!key) return null;
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 8000);
+    const url = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(addr)}&size=1`;
+    const r = await fetch(url, {
+      headers: { 'Authorization': 'KakaoAK ' + key },
+      signal: ctrl.signal
+    });
+    clearTimeout(tid);
+    if (r.status === 401) { toast('카카오 API 키가 잘못됐습니다 — 키를 확인해주세요', 'err'); return null; }
+    const d = await r.json();
+    // 도로명/지번 주소 좌표
+    const doc = d.documents?.[0];
+    if (doc) return { lat: parseFloat(doc.y), lon: parseFloat(doc.x), name: doc.address_name, approx: false, matchedQuery: addr };
+    // 주소로 안 찾으면 키워드 검색으로 재시도
+    const url2 = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(addr)}&size=1`;
+    const r2 = await fetch(url2, { headers: { 'Authorization': 'KakaoAK ' + key }, signal: new AbortController().signal });
+    const d2 = await r2.json();
+    const doc2 = d2.documents?.[0];
+    if (doc2) return { lat: parseFloat(doc2.y), lon: parseFloat(doc2.x), name: doc2.place_name, approx: false, matchedQuery: addr };
+    return null;
+  } catch(e) { return null; }
+}
+
 // ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
 // 주소를 점진적으로 줄여가며 검색 (번길→로→구→시 순으로 단계 축소)
 function addrFallbacks(addr) {
@@ -828,6 +925,12 @@ function addrFallbacks(addr) {
 }
 
 async function geocodeAddr(addr) {
+  // 1순위: 카카오 API (키 있을 때) — 한국 주소 완벽 인식
+  if (getKakaoKey()) {
+    const kakaoResult = await geocodeKakao(addr);
+    if (kakaoResult) return kakaoResult;
+  }
+  // 2순위: Nominatim (무료, 한국 상세주소 인식률 낮음) — 단계별 fallback
   const queries = addrFallbacks(addr);
   for (const q of queries) {
     try {
@@ -838,7 +941,7 @@ async function geocodeAddr(addr) {
       clearTimeout(tid);
       const d = await r.json();
       if (d[0]) {
-        const approx = q !== addr && !q.endsWith('대한민국') ? false : (q === addr || q === addr+' 대한민국') ? false : true;
+        const approx = !(q === addr || q === addr + ' 대한민국');
         return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name, approx, matchedQuery: q };
       }
     } catch(e) { /* 다음 단계로 */ }
