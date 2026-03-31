@@ -3,8 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>차량업무일지</title>
-<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<meta name="theme-color" content="#1f2937">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="업무일지">
+<title>차량업무일지 v2</title>
+<!-- PWA 매니페스트 인라인 -->
+<script>
+(function(){
+  const manifest = {
+    name: "차량업무일지",
+    short_name: "업무일지",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#111827",
+    theme_color: "#1f2937",
+    icons: [{src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231f2937'/><text y='.9em' font-size='80' x='10'>🚗</text></svg>",sizes:"192x192",type:"image/svg+xml"}]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const link = document.createElement('link');
+  link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Apple SD Gothic Neo',Malgun Gothic,sans-serif;background:#111827;color:#f3f4f6;min-height:100vh}
@@ -18,12 +39,17 @@ nav{background:#1f2937;border-bottom:1px solid #374151;padding:0 20px;height:52p
 select.emp-sel{background:#374151;border:1px solid #4b5563;color:#f3f4f6;padding:5px 10px;border-radius:7px;font-size:13px;cursor:pointer;outline:none}
 select.emp-sel:focus{border-color:#60a5fa}
 
+/* 버전 뱃지 */
+.v-badge{font-size:10px;color:#6b7280;background:#374151;padding:2px 7px;border-radius:20px;border:1px solid #4b5563}
+
 /* BUTTONS */
 .btn{padding:6px 14px;border-radius:7px;border:none;cursor:pointer;font-size:13px;font-weight:500;transition:.15s}
 .btn-blue{background:#2563eb;color:#fff}.btn-blue:hover{background:#3b82f6}
+.btn-green{background:#059669;color:#fff}.btn-green:hover{background:#10b981}
 .btn-gray{background:#374151;color:#d1d5db;border:1px solid #4b5563}.btn-gray:hover{border-color:#60a5fa;color:#60a5fa}
 .btn-red{background:transparent;border:1px solid transparent;color:#f87171;font-size:12px;padding:3px 8px;border-radius:5px;cursor:pointer}.btn-red:hover{border-color:#f87171}
 .btn-sm{padding:4px 10px;font-size:12px}
+.btn-icon{background:#374151;border:1px solid #4b5563;color:#9ca3af;padding:5px 10px;border-radius:7px;cursor:pointer;font-size:12px;transition:.15s}.btn-icon:hover{border-color:#60a5fa;color:#60a5fa}
 
 /* WRAP */
 .wrap{max-width:1100px;margin:0 auto;padding:24px 16px}
@@ -34,7 +60,7 @@ select.emp-sel:focus{border-color:#60a5fa}
 .tab.on{background:#2563eb;color:#fff}
 
 /* MONTH NAV */
-.mrow{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.mrow{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
 .mtitle{font-size:19px;font-weight:700;min-width:120px}
 .mtitle span{color:#60a5fa}
 .nbtn{width:28px;height:28px;border-radius:6px;background:#1f2937;border:1px solid #374151;color:#f3f4f6;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
@@ -43,7 +69,7 @@ select.emp-sel:focus{border-color:#60a5fa}
 .exp-btn:hover{border-color:#34d399;color:#34d399}
 
 /* STATS */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
 .stat{background:#1f2937;border:1px solid #374151;border-radius:10px;padding:16px 18px}
 .stat-l{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
 .stat-v{font-size:22px;font-weight:700}
@@ -96,7 +122,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
 /* MODAL */
 .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
 .ov.on{display:flex}
-.modal{background:#1f2937;border:1px solid #374151;border-radius:14px;padding:24px;width:420px;max-width:95vw}
+.modal{background:#1f2937;border:1px solid #374151;border-radius:14px;padding:24px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
 .modal h3{font-size:14px;font-weight:700;margin-bottom:4px}
 .modal p{font-size:12px;color:#9ca3af;margin-bottom:16px}
 .ma{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
@@ -108,224 +134,209 @@ tr:hover td{background:rgba(96,165,250,.03)}
 .msg.err{background:rgba(248,113,113,.15);color:#f87171;border:1px solid rgba(248,113,113,.3)}
 
 /* TOAST */
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 .toast.on{opacity:1}
-
-@media(max-width:650px){
-  body{font-size:13px}
-  .stats{grid-template-columns:1fr 1fr}
-  .stat{padding:12px 14px}
-  .stat-v{font-size:18px}
-  .stat-l{font-size:9px}
-  .row2,.row3{grid-template-columns:1fr}
-  nav{padding:0 10px;height:48px}
-  .nav-l{font-size:13px}
-  .nav-r{gap:4px}
-  .btn-sm{padding:4px 8px;font-size:12px}
-  .nav-r .btn-sm{font-size:10px;padding:3px 6px}
-  .nav-r select.emp-sel{font-size:11px;padding:4px 6px;max-width:88px}
-  .wrap{padding:12px 10px}
-  .mtitle{font-size:16px;min-width:100px}
-  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;scrollbar-width:none}
-  .tabs::-webkit-scrollbar{display:none}
-  .tab{font-size:12px;padding:5px 12px;white-space:nowrap}
-  .mrow{flex-wrap:wrap;gap:6px}
-  .exp-btn{font-size:11px;padding:4px 8px}
-  /* 출근 카드 모바일 */
-  .commute-card{flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px}
-  .btn-checkin{width:100%;padding:10px;font-size:13px}
-  /* 테이블 가로 스크롤 */
-  #rTable,#lTable{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #rTable table,#lTable table{min-width:520px}
-  th{padding:7px 8px;font-size:9px}
-  td{padding:7px 8px;font-size:11px}
-  .card-b{padding:12px}
-  .card-h{padding:10px 14px}
-  /* 모달 */
-  .modal{padding:18px 16px}
-}
 
 /* AUTOCOMPLETE */
 .ac-wrap{position:relative}
-.ac-list{position:absolute;top:100%;left:0;right:0;background:#1f2937;border:1px solid #4b5563;border-radius:0 0 8px 8px;z-index:100;max-height:220px;overflow-y:auto;display:none}
-.ac-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #374151;display:flex;align-items:center;gap:6px}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:#1f2937;border:1px solid #4b5563;border-radius:0 0 8px 8px;z-index:100;max-height:200px;overflow-y:auto;display:none}
+.ac-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #374151;display:flex;flex-direction:column;gap:2px}
 .ac-item:last-child{border-bottom:none}
-.ac-item:hover{background:#374151}
-.ac-item .ac-name{font-weight:500;color:#f3f4f6;flex:1}
-.ac-item .ac-addr{font-size:11px;color:#9ca3af}
-.ac-preset{background:rgba(37,99,235,.07);border-left:2px solid #2563eb}
-.ac-preset:hover{background:rgba(37,99,235,.15)}
-.ac-badge{display:inline-block;background:#1e3a5f;color:#60a5fa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
-.ac-sep{padding:4px 12px;font-size:10px;color:#4b5563;background:#111827;font-weight:600;letter-spacing:.5px;border-bottom:1px solid #374151}
-/* 주소 입력행 */
-.addr-row{display:flex;gap:6px;align-items:flex-start}
-.addr-row .ac-wrap{flex:1;min-width:0}
-.addr-btn{background:#1f2937;border:1px solid #374151;color:#9ca3af;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:12px;white-space:nowrap;transition:.15s;flex-shrink:0;font-family:inherit}.addr-btn:hover{border-color:#60a5fa;color:#60a5fa}
+.ac-item:hover,.ac-item.ac-sel{background:#374151}
+.ac-item .ac-name{font-weight:500;color:#f3f4f6}
+.ac-item .ac-hl{color:#60a5fa;font-weight:700}
 
 /* 출근 체크 카드 */
-.commute-card{background:linear-gradient(135deg,#1e3a5f,#1f2937);border:1px solid #2563eb;border-radius:10px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.commute-card{background:linear-gradient(135deg,#1e3a5f,#1f2937);border:1px solid #2563eb;border-radius:12px;padding:18px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.commute-card.commute-done{background:linear-gradient(135deg,#064e3b,#1f2937);border-color:#059669}
 .commute-info{flex:1}
-.commute-title{font-size:14px;font-weight:700;margin-bottom:3px}
-.commute-sub{font-size:12px;color:#9ca3af}
-.commute-done{background:#14532d;border-color:#16a34a;opacity:.7}
-.commute-done .commute-title{color:#86efac}
-.btn-checkin{background:#2563eb;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;white-space:nowrap}
+.commute-title{font-size:15px;font-weight:700;margin-bottom:3px}
+.commute-sub{font-size:12px;color:#93c5fd}
+.commute-done .commute-sub{color:#6ee7b7}
+.btn-checkin{background:#2563eb;color:#fff;border:none;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;white-space:nowrap}
 .btn-checkin:hover{background:#3b82f6}
-.btn-checkin.done{background:#16a34a;cursor:default}
-.btn-checkin.done:hover{background:#16a34a}
+.btn-checkin.done{background:#059669;cursor:default}
+.btn-checkout{background:#d97706;color:#fff;border:none;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;white-space:nowrap;margin-left:8px}
+.btn-checkout:hover{background:#f59e0b}
+.btn-checkout.done{background:#374151;color:#6b7280;cursor:default}
+
+/* 근무시간 표시 */
+.work-time{font-size:11px;color:#fbbf24;font-weight:600;margin-top:4px}
+.work-time.long{color:#f87171}
+
+/* PIN 입력 */
+.pin-row{display:flex;gap:8px;align-items:center}
+.pin-input{background:#111827;border:1px solid #374151;color:#f3f4f6;padding:8px 12px;border-radius:7px;font-size:16px;letter-spacing:4px;width:120px;outline:none;text-align:center}
+.pin-input:focus{border-color:#60a5fa}
+
+/* 파일 배너 */
+#fileBanner{display:none;background:#7c3aed;color:#fff;padding:12px 20px;text-align:center;font-size:13px;font-weight:600}
+
+/* 백업 섹션 */
+.backup-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px 18px;background:#111827;border-radius:0 0 10px 10px;border-top:1px solid #374151}
+.backup-row label{font-size:12px;color:#6b7280}
+
+@media(max-width:700px){
+  .stats{grid-template-columns:1fr 1fr}
+  .row2,.row3{grid-template-columns:1fr}
+  nav{padding:0 12px}
+  .wrap{padding:14px 10px}
+  .commute-card{flex-direction:column;align-items:flex-start}
+  .btn-checkin,.btn-checkout{width:100%}
+}
 </style>
 </head>
 <body>
 
-
-<!-- 직접 열기 감지 배너 -->
-<div id="fileBanner" style="display:none;background:#7f1d1d;color:#fca5a5;padding:10px 20px;font-size:13px;font-weight:600;text-align:center">
-  ⚠️ index.html을 직접 열면 작동하지 않습니다! 반드시 <b>시작.bat</b>을 실행 후 브라우저에서 <b>http://localhost:3030</b>으로 접속하세요.
+<div id="fileBanner">
+  ⚠ index.html을 직접 열면 안됩니다! <strong>시작.bat</strong>을 실행하거나 <strong>node server.js</strong>를 먼저 실행하세요.
 </div>
+
 <nav>
-  <div class="nav-l">🚗 차량업무일지 <span>/ 더 맛있는 하루</span></div>
+  <div class="nav-l" id="navTitle">🚗 차량업무일지 <span>v2</span></div>
   <div class="nav-r">
     <select class="emp-sel" id="empSel" onchange="pickEmp(this.value)">
       <option value="">-- 사원 선택 --</option>
     </select>
-    <button class="btn btn-gray btn-sm" onclick="openEmpModal()">👤 사원관리</button>
-    <button class="btn btn-gray btn-sm" onclick="openPreset()">⚙ 출퇴근설정</button>
+    <button class="btn btn-gray btn-sm" onclick="openPreset()" title="출퇴근 고정값 설정">⚙</button>
+    <button class="btn btn-gray btn-sm" onclick="openEmpModal()" title="사원 관리">👤</button>
   </div>
 </nav>
 
 <div class="wrap">
+
+  <!-- 출퇴근 체크 카드 -->
+  <div class="commute-card" id="commuteCard" style="display:none">
+    <div class="commute-info">
+      <div class="commute-title" id="commuteTitle">🚗 오늘 출근 체크</div>
+      <div class="commute-sub" id="commuteSubTitle">사원을 선택해주세요</div>
+      <div class="work-time" id="workTimeDisplay" style="display:none"></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-checkin" id="checkinBtn" onclick="doCheckin()">✅ 출근 등록</button>
+      <button class="btn-checkout" id="checkoutBtn" onclick="doCheckout()" style="display:none">🏠 퇴근 등록</button>
+    </div>
+  </div>
+
+  <!-- 탭 + 월 네비게이션 -->
   <div class="tabs">
     <button class="tab on" onclick="tab('입력')">📋 기록입력</button>
     <button class="tab" onclick="tab('목록')">📂 내 기록</button>
     <button class="tab" onclick="tab('요약')">📊 월별요약</button>
-    <button class="tab" onclick="tab('차량')">🚗 차량관리</button>
+    <button class="tab" onclick="tab('자량관리')">🚗 자량관리</button>
   </div>
 
   <div class="mrow">
     <button class="nbtn" onclick="chMon(-1)">‹</button>
-    <div class="mtitle" id="mtitle"></div>
+    <div class="mtitle" id="mtitle"><span>2025</span>년 <span>1</span>월</div>
     <button class="nbtn" onclick="chMon(1)">›</button>
-    <button class="btn btn-gray btn-sm" onclick="goNow()">오늘</button>
-    <div style="flex:1"></div>
-    <button class="exp-btn" onclick="expCSV()">📥 엑셀</button>
-    <button class="exp-btn" onclick="expPDF()" style="margin-left:6px">🖨 PDF</button>
+    <button class="exp-btn" onclick="goNow()">오늘</button>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280" id="rCnt">0건</span>
+  </div>
+
+  <!-- 통계 -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-l">총 주행</div>
+      <div class="stat-v" style="color:#60a5fa" id="sKm">0<span class="stat-u">km</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-l">출퇴근</div>
+      <div class="stat-v" style="color:#34d399" id="sCom">0<span class="stat-u">회</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-l">외근</div>
+      <div class="stat-v" style="color:#fb923c" id="sBiz">0<span class="stat-u">회</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-l">주유금액</div>
+      <div class="stat-v" style="color:#fbbf24" id="sFuel">0<span class="stat-u">원</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-l">근무시간</div>
+      <div class="stat-v" style="color:#a78bfa" id="sHours">-<span class="stat-u">h</span></div>
+    </div>
   </div>
 
   <!-- 입력 탭 -->
   <div id="tab-입력">
-
-    <!-- 출근 체크 카드 -->
-    <div style="border:1px solid #2563eb;border-radius:10px;margin-bottom:18px;overflow:hidden">
-      <div class="commute-card" id="commuteCard" style="border:none;border-radius:0;margin-bottom:0">
-        <div class="commute-info">
-          <div class="commute-title" id="commuteTitle">🚗 오늘 출퇴근 등록</div>
-          <div class="commute-sub" id="commuteSubTitle">버튼을 누르면 출퇴근 기록이 자동으로 추가됩니다</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-          <button class="btn-checkin" id="checkinBtn" onclick="doCheckin()">✅ 출퇴근 등록</button>
-          <button type="button" onclick="togglePastCheckin()" style="background:transparent;border:none;color:#6b7280;font-size:11px;cursor:pointer;padding:0;white-space:nowrap" id="pastToggleBtn">📅 다른 날 등록 ▾</button>
-        </div>
-      </div>
-      <!-- 다른 날 출퇴근 등록 패널 -->
-      <div id="pastCheckinPanel" style="display:none;background:#111827;border-top:1px solid #374151;padding:12px 20px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:12px;color:#9ca3af;white-space:nowrap">📅 날짜 선택:</span>
-          <input type="date" id="pastDate" class="fi" style="width:150px;padding:6px 10px;font-size:13px">
-          <button class="btn btn-blue btn-sm" onclick="doPastCheckin()">출퇴근 등록</button>
-          <span id="pastCheckinMsg" style="font-size:12px;color:#9ca3af"></span>
-        </div>
-      </div>
-    </div>
-
-    <div class="stats">
-      <div class="stat"><div class="stat-l">총 주행</div><div class="stat-v" id="sKm" style="color:#60a5fa">0<span class="stat-u">km</span></div></div>
-      <div class="stat"><div class="stat-l">출퇴근</div><div class="stat-v" id="sCom" style="color:#34d399">0<span class="stat-u">회</span></div></div>
-      <div class="stat"><div class="stat-l">외근</div><div class="stat-v" id="sBiz" style="color:#fb923c">0<span class="stat-u">회</span></div></div>
-      <div class="stat"><div class="stat-l">주유금액</div><div class="stat-v" id="sFuel" style="color:#fbbf24">0<span class="stat-u">원</span></div></div>
-    </div>
-
     <div class="card">
-      <div class="card-h"><h3>새 기록 추가</h3></div>
+      <div class="card-h">
+        <h3>기록 추가</h3>
+        <div style="display:flex;gap:6px">
+          <button class="exp-btn" onclick="expCSV()">⬇ CSV</button>
+          <button class="exp-btn" onclick="expPDF()">🖨 PDF</button>
+        </div>
+      </div>
       <div class="card-b">
         <div class="row3">
-          <div class="fg">
+          <div class="fg" style="margin-top:0">
             <label>날짜</label>
-            <div style="display:flex;gap:5px;align-items:center">
-              <input type="date" class="fi" id="fDate" style="flex:1">
-              <button type="button" class="addr-btn" onclick="setDateOffset(0)" title="오늘">오늘</button>
-              <button type="button" class="addr-btn" onclick="setDateOffset(-1)" title="어제">어제</button>
-            </div>
+            <input type="date" class="fi" id="fDate">
           </div>
-          <div class="fg"><label>유형</label>
+          <div class="fg" style="margin-top:0">
+            <label>유형</label>
             <select class="fs" id="fType" onchange="typeChange()">
-              <option value="commute">🏠 출퇴근</option>
-              <option value="business">🏢 외근</option>
-              <option value="fuel">⛽ 주유</option>
+              <option value="commute">출퇴근</option>
+              <option value="business">외근</option>
+              <option value="fuel">주유</option>
             </select>
           </div>
-          <div class="fg"><label>차량번호</label><input type="text" class="fi" id="fCar" placeholder="12가 3456"></div>
+          <div class="fg" style="margin-top:0">
+            <label>차량번호</label>
+            <input class="fi" id="fCar" placeholder="12가 3456">
+          </div>
         </div>
-        <div class="row2" style="margin-top:10px">
-          <div class="fg">
+        <div class="row2">
+          <div class="fg ac-wrap">
             <label>출발지</label>
-            <div class="addr-row">
-              <div class="ac-wrap">
-                <input type="text" class="fi" id="fFrom" placeholder="장소명 입력 또는 📍 검색" autocomplete="off"
-                  oninput="acSearch(this,'acFrom');updateNaverLink()"
-                  onfocus="acFocus(this,'acFrom')"
-                  onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')">
-                <div class="ac-list" id="acFrom"></div>
-              </div>
-              <button type="button" class="addr-btn" onclick="searchAddr('fFrom')">📍 검색</button>
-            </div>
+            <input class="fi" id="fFrom" placeholder="출발지 입력"
+              oninput="acSearch(this,'acFrom')" onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')"
+              oninputCapture="updateNaverLink()">
+            <div class="ac-list" id="acFrom"></div>
+          </div>
+          <div class="fg ac-wrap">
+            <label>도착지</label>
+            <input class="fi" id="fTo" placeholder="도착지 입력"
+              oninput="acSearch(this,'acTo')" onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')"
+              oninputCapture="updateNaverLink()">
+            <div class="ac-list" id="acTo"></div>
+          </div>
+        </div>
+        <div class="row3">
+          <div class="fg">
+            <label>주행거리 (km)</label>
+            <input type="number" class="fi" id="fKm" placeholder="45" min="0">
           </div>
           <div class="fg">
-            <label>도착지</label>
-            <div class="addr-row">
-              <div class="ac-wrap">
-                <input type="text" class="fi" id="fTo" placeholder="장소명 입력 또는 📍 검색" autocomplete="off"
-                  oninput="acSearch(this,'acTo');updateNaverLink()"
-                  onfocus="acFocus(this,'acTo')"
-                  onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')">
-                <div class="ac-list" id="acTo"></div>
-              </div>
-              <button type="button" class="addr-btn" onclick="searchAddr('fTo')">📍 검색</button>
-            </div>
+            <label>출근 시각</label>
+            <input type="time" class="fi" id="fCheckinTime" placeholder="09:00">
+          </div>
+          <div class="fg">
+            <label>퇴근 시각</label>
+            <input type="time" class="fi" id="fCheckoutTime" placeholder="18:00">
           </div>
         </div>
-        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button type="button" id="calcBtn" class="btn btn-gray btn-sm" onclick="autoCalcKm()" style="display:flex;align-items:center;gap:5px">
-            🚗 거리 자동계산
-          </button>
-          <span id="calcEngineTag" style="font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(96,165,250,.12);color:#60a5fa;display:none"></span>
-          <span id="calcHint" style="font-size:11px;color:#6b7280">출퇴근은 왕복·외근은 편도로 자동 계산됩니다</span>
-          <a id="naverLink" href="#" target="_blank" style="display:none;align-items:center;gap:5px;background:#03C75A;color:#fff;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;margin-left:auto">
-            🗺 네이버지도 확인 →
+        <div class="row2">
+          <div class="fg">
+            <label>주유금액 (원)</label>
+            <input type="number" class="fi" id="fFuel" placeholder="0" min="0">
+          </div>
+          <div class="fg">
+            <label>방문처</label>
+            <input class="fi" id="fClient" placeholder="거래처명">
+          </div>
+        </div>
+        <div class="fg">
+          <label>업무내용</label>
+          <textarea class="ft" id="fMemo" placeholder="업무 내용 간략 기재"></textarea>
+        </div>
+        <div style="margin-top:8px">
+          <a id="naverLink" href="#" target="_blank" rel="noopener"
+            style="display:none;align-items:center;gap:5px;font-size:12px;color:#60a5fa;text-decoration:none">
+            🗺 네이버 지도로 길찾기
           </a>
-          <button type="button" onclick="toggleApiKeyPanel()" style="background:transparent;border:none;color:#4b5563;font-size:11px;cursor:pointer;padding:0;margin-left:auto" id="apiKeyToggleBtn" title="카카오 REST API 설정">🔑 서버 설정</button>
         </div>
-        <!-- 카카오 REST API 서버 설정 안내 패널 -->
-        <div id="apiKeyPanel" style="display:none;margin-top:8px;background:#111827;border:1px solid #374151;border-radius:8px;padding:12px 14px">
-          <div style="font-size:12px;font-weight:600;color:#f3f4f6;margin-bottom:6px">🔑 카카오 REST API 설정 (서버 환경변수)</div>
-          <div style="font-size:11px;color:#9ca3af;margin-bottom:8px">
-            서버에 카카오 REST API 키를 설정하면 <b style="color:#60a5fa">번길·상세주소도 정확하게</b> 거리계산됩니다. 무료 · 하루 300,000건<br>
-            브라우저가 아닌 <b style="color:#34d399">서버에서 직접 카카오에 요청</b>하므로 CORS 문제가 완전히 해결됩니다.
-          </div>
-          <div id="apiKeyStatus" style="font-size:12px;margin-bottom:8px;color:#9ca3af">🔄 서버 상태 확인 중...</div>
-          <div style="font-size:10px;color:#4b5563;line-height:1.9;background:#1f2937;padding:8px 10px;border-radius:6px">
-            📌 <b style="color:#9ca3af">Railway 환경변수 설정 방법:</b><br>
-            ① <a href="https://developers.kakao.com/console/app" target="_blank" style="color:#60a5fa">카카오 개발자 콘솔</a> → 앱 선택 → <b>[앱 키]</b> 탭 → <b style="color:#fbbf24">REST API 키</b> 복사<br>
-            ② <a href="https://railway.app" target="_blank" style="color:#60a5fa">Railway 대시보드</a> → 프로젝트 → <b>Variables</b> 탭 클릭<br>
-            ③ 변수명: <code style="color:#34d399">KAKAO_REST_KEY</code> / 값: 복사한 REST API 키 붙여넣기<br>
-            ④ <b>Add</b> 클릭 → 자동 재배포 완료 후 거리계산 테스트
-          </div>
-        </div>
-        <div class="row3" style="margin-top:10px">
-          <div class="fg"><label>주행거리(km)</label><input type="number" class="fi" id="fKm" placeholder="0" min="0"></div>
-          <div class="fg"><label>주유금액(원)</label><input type="number" class="fi" id="fFuel" placeholder="0"></div>
-          <div class="fg"><label>방문처</label><input type="text" class="fi" id="fClient" placeholder="외근 시 입력"></div>
-        </div>
-        <div class="fg" style="margin-top:10px"><label>업무내용</label><textarea class="ft" id="fMemo" placeholder="간단히 기록..."></textarea></div>
         <div class="fa">
           <button class="btn btn-gray" onclick="clearForm()">초기화</button>
           <button class="btn btn-blue" onclick="saveRecord()">저장</button>
@@ -333,11 +344,9 @@ tr:hover td{background:rgba(96,165,250,.03)}
       </div>
     </div>
 
+    <!-- 최근 기록 테이블 -->
     <div class="card">
-      <div class="card-h">
-        <h3>이번 달 기록</h3>
-        <span style="font-size:12px;color:#6b7280" id="rCnt">0건</span>
-      </div>
+      <div class="card-h"><h3>이번 달 기록</h3></div>
       <div id="rTable"></div>
     </div>
   </div>
@@ -346,7 +355,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
   <div id="tab-목록" style="display:none">
     <div class="card">
       <div class="card-h">
-        <h3 id="listTitle">기록</h3>
+        <h3 id="listTitle">— 목록</h3>
         <span style="font-size:12px;color:#6b7280" id="lCnt">0건</span>
       </div>
       <div id="lTable"></div>
@@ -355,104 +364,200 @@ tr:hover td{background:rgba(96,165,250,.03)}
 
   <!-- 요약 탭 -->
   <div id="tab-요약" style="display:none">
-    <div class="sgrid" id="sGrid"></div>
+    <div class="card">
+      <div class="card-h">
+        <h3>전체 직원 요약</h3>
+        <button class="exp-btn" onclick="expAllCSV()">⬇ 전체 CSV</button>
+      </div>
+      <div class="card-b">
+        <div class="sgrid" id="sGrid"></div>
+      </div>
+    </div>
   </div>
 
-  <!-- 차량 탭 -->
-  <div id="tab-차량" style="display:none">
+  <!-- 자량관리 탭 -->
+  <div id="tab-자량관리" style="display:none">
+
+    <!-- 엑셀/PDF 버튼 -->
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+      <button class="exp-btn" onclick="expVehicleCSV()">⬇ 엑셀</button>
+      <button class="exp-btn" onclick="expVehiclePDF()">🖨 PDF</button>
+    </div>
 
     <!-- 차량 등록 -->
-    <div class="card" style="margin-bottom:18px">
-      <div class="card-h"><h3>🚗 차량 등록</h3></div>
+    <div class="card">
+      <div class="card-h"><h3>🚗 자량 등록</h3></div>
       <div class="card-b">
-        <div style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:8px;align-items:end">
-          <div class="fg" style="margin-top:0"><label>번호판</label><input type="text" class="fi" id="vPlate" placeholder="12가 3456"></div>
-          <div class="fg" style="margin-top:0"><label>차종</label><input type="text" class="fi" id="vModel" placeholder="소나타, K5..."></div>
-          <div class="fg" style="margin-top:0"><label>연식</label><input type="number" class="fi" id="vYear" placeholder="2023" min="1990" max="2030"></div>
-          <button class="btn btn-blue" style="height:36px" onclick="addVehicle()">추가</button>
+        <div class="row3">
+          <div class="fg" style="margin-top:0"><label>번호판</label><input class="fi" id="vPlate" placeholder="134구9635"></div>
+          <div class="fg" style="margin-top:0"><label>자종</label><input class="fi" id="vModel" placeholder="팰리세이드"></div>
+          <div class="fg" style="margin-top:0"><label>연식</label><input type="number" class="fi" id="vYear" placeholder="2023"></div>
         </div>
-        <div id="vList" style="margin-top:14px"></div>
+        <div class="fa">
+          <button class="btn btn-blue" onclick="addVehicle()">추가</button>
+        </div>
+        <div id="vehicleList" style="margin-top:14px"></div>
       </div>
     </div>
 
     <!-- 계기판 기록 -->
-    <div class="card" style="margin-bottom:18px">
+    <div class="card">
       <div class="card-h">
-        <h3>📏 계기판 기록</h3>
-        <span style="font-size:12px;color:#6b7280" id="odomMonth"></span>
+        <h3>📍 계기판 기록</h3>
+        <span style="font-size:12px;color:#6b7280" id="odoMonthLabel"></span>
       </div>
       <div class="card-b">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
-          <div class="fg" style="margin-top:0"><label>차량</label>
-            <select class="fs" id="odomCar"></select>
+        <div class="row3">
+          <div class="fg" style="margin-top:0">
+            <label>자량</label>
+            <select class="fs" id="odoVehicle" onchange="loadOdoRecord()"></select>
           </div>
-          <div class="fg" style="margin-top:0"><label>월초 계기판(km)</label><input type="number" class="fi" id="odomStart" placeholder="12000" min="0"></div>
-          <div class="fg" style="margin-top:0"><label>월말 계기판(km)</label><input type="number" class="fi" id="odomEnd" placeholder="12850" min="0"></div>
-          <button class="btn btn-blue" style="height:36px" onclick="saveOdometer()">저장</button>
+          <div class="fg" style="margin-top:0"><label>월초 계기판(km)</label><input type="number" class="fi" id="odoStart" placeholder="12000" min="0"></div>
+          <div class="fg" style="margin-top:0"><label>월말 계기판(km)</label><input type="number" class="fi" id="odoEnd" placeholder="12850" min="0"></div>
         </div>
-        <div id="odomList" style="margin-top:14px"></div>
+        <div class="fa">
+          <button class="btn btn-blue" onclick="saveOdometer()">저장</button>
+        </div>
+        <div id="odoSavedMsg" style="margin-top:8px;font-size:12px;color:#34d399;text-align:center;display:none"></div>
+        <div id="odoRecord" style="margin-top:12px"></div>
       </div>
     </div>
 
-    <!-- 월별 운행 분석 -->
+    <!-- 이번 달 운행 분석 -->
     <div class="card">
-      <div class="card-h"><h3>📊 이번 달 운행 분석</h3></div>
-      <div id="vAnalysis" class="card-b"></div>
+      <div class="card-h">
+        <h3>📊 이번 달 운행 분석</h3>
+        <button class="btn btn-green btn-sm" onclick="openBizModal()">+ 외근 추가</button>
+      </div>
+      <div id="vehicleAnalysis" style="padding:4px 0"></div>
     </div>
 
   </div>
+
 </div>
 
-<!-- 사원관리 모달 -->
+<!-- 사원 관리 모달 -->
 <div class="ov" id="empMod">
   <div class="modal">
     <h3>👤 사원 관리</h3>
-    <p>사원을 추가하거나 삭제합니다</p>
-    <div class="row2">
-      <div class="fg" style="margin-top:0"><label>이름</label><input class="fi" id="newEmp" placeholder="홍길동" onkeydown="if(event.key==='Enter')addEmp()"></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn btn-blue" id="addBtn" style="width:100%" onclick="addEmp()">+ 추가</button></div>
+    <p>사원을 추가하거나 삭제합니다 (관리자 PIN 필요)</p>
+
+    <!-- PIN 입력 -->
+    <div id="pinSection">
+      <div class="fg" style="margin-top:0">
+        <label>관리자 PIN</label>
+        <div class="pin-row">
+          <input type="password" class="pin-input" id="empPin" maxlength="8" placeholder="••••"
+            onkeydown="if(event.key==='Enter')verifyPin()">
+          <button class="btn btn-blue btn-sm" onclick="verifyPin()">확인</button>
+        </div>
+      </div>
+      <div class="msg" id="pinMsg"></div>
     </div>
-    <div class="msg" id="empMsg"></div>
-    <div class="emp-list" id="empList"></div>
-    <div class="ma"><button class="btn btn-gray" onclick="closeEmpModal()">닫기</button></div>
+
+    <!-- 사원 관리 (PIN 인증 후 표시) -->
+    <div id="empSection" style="display:none">
+      <div style="display:flex;gap:8px;margin-top:0">
+        <input class="fi" id="newEmp" placeholder="사원 이름" maxlength="20"
+          onkeydown="if(event.key==='Enter')addEmp()">
+        <button class="btn btn-blue btn-sm" id="addBtn" onclick="addEmp()">+ 추가</button>
+      </div>
+      <div class="msg" id="empMsg"></div>
+      <div class="emp-list" id="empList"></div>
+    </div>
+
+    <!-- 백업 / 복원 -->
+    <div class="backup-row" style="margin-top:16px;border-radius:8px;border:1px solid #374151">
+      <label>데이터 관리:</label>
+      <button class="btn-icon btn-sm" onclick="doBackup()">💾 백업 다운로드</button>
+      <label class="btn-icon btn-sm" style="cursor:pointer">
+        📂 백업 복원
+        <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="doRestore(this)">
+      </label>
+    </div>
+
+    <div class="ma">
+      <button class="btn btn-gray" onclick="closeEmpModal()">닫기</button>
+    </div>
   </div>
 </div>
 
 <!-- 출퇴근 설정 모달 -->
 <div class="ov" id="preMod">
   <div class="modal">
-    <h3>⚙ 출퇴근 고정값 설정</h3>
-    <p>저장하면 출퇴근 선택 시 자동으로 채워집니다. 출발지·도착지는 📍 검색으로 정확한 주소를 찾을 수 있습니다.</p>
-    <div class="fg" style="margin-top:0">
-      <label>출발지 (집)</label>
-      <div class="addr-row">
-        <input class="fi" id="pFrom" placeholder="예) 용인시 처인구" style="flex:1">
-        <button type="button" class="addr-btn" onclick="searchAddr('pFrom')">📍 검색</button>
+    <h3>⚙ 출퇴근 고정 설정</h3>
+    <p>출근 체크 버튼을 누를 때 자동으로 채워질 값을 설정합니다</p>
+    <div class="row2">
+      <div class="fg ac-wrap" style="margin-top:0">
+        <label>출발지 (집)</label>
+        <input class="fi" id="pFrom" placeholder="예) 경기 수원시"
+          oninput="acSearch(this,'acPFrom')" onblur="hideAc('acPFrom')" onkeydown="acKey(event,'acPFrom','pFrom')">
+        <div class="ac-list" id="acPFrom"></div>
+      </div>
+      <div class="fg ac-wrap" style="margin-top:0">
+        <label>도착지 (회사)</label>
+        <input class="fi" id="pTo" placeholder="예) 서울 강남구"
+          oninput="acSearch(this,'acPTo')" onblur="hideAc('acPTo')" onkeydown="acKey(event,'acPTo','pTo')">
+        <div class="ac-list" id="acPTo"></div>
       </div>
     </div>
-    <div class="fg" style="margin-top:10px">
-      <label>도착지 (회사)</label>
-      <div class="addr-row">
-        <input class="fi" id="pTo" placeholder="예) 서울 강남구" style="flex:1">
-        <button type="button" class="addr-btn" onclick="searchAddr('pTo')">📍 검색</button>
-      </div>
-    </div>
-    <div style="margin-top:10px">
-      <button type="button" id="preCalcBtn" class="btn btn-gray btn-sm" onclick="autoCalcPresetKm()" style="display:flex;align-items:center;gap:5px">
-        🚗 왕복 거리 자동계산
-      </button>
-      <span id="preCalcHint" style="font-size:11px;color:#6b7280;display:block;margin-top:4px">집↔회사 주소를 입력한 뒤 클릭하면 왕복 거리가 자동 입력됩니다</span>
-    </div>
-    <div class="row2" style="margin-top:10px">
-      <div class="fg" style="margin-top:0">
-        <label>왕복 거리 (km) <span style="font-size:10px;color:#6b7280">· 출근+퇴근 합산</span></label>
-        <input type="number" class="fi" id="pKm" placeholder="예) 90 (편도 45×2)">
-      </div>
+    <div class="row2">
+      <div class="fg" style="margin-top:0"><label>편도 거리(km)</label><input type="number" class="fi" id="pKm" placeholder="45" min="0"></div>
       <div class="fg" style="margin-top:0"><label>차량번호</label><input class="fi" id="pCar" placeholder="12가 3456"></div>
+    </div>
+    <div class="row2">
+      <div class="fg" style="margin-top:0"><label>평소 출근 시각</label><input type="time" class="fi" id="pCheckinTime" placeholder="09:00"></div>
+      <div class="fg" style="margin-top:0"><label>평소 퇴근 시각</label><input type="time" class="fi" id="pCheckoutTime" placeholder="18:00"></div>
     </div>
     <div class="ma">
       <button class="btn btn-gray" onclick="closePreset()">취소</button>
       <button class="btn btn-blue" onclick="savePreset()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 외근 추가 모달 (다른날 등록) -->
+<div class="ov" id="bizMod">
+  <div class="modal">
+    <h3>🚗 외근 추가</h3>
+    <p>다른 날짜의 외근 기록을 추가합니다</p>
+    <div class="row2">
+      <div class="fg" style="margin-top:0"><label>날짜</label><input type="date" class="fi" id="bizDate"></div>
+      <div class="fg" style="margin-top:0"><label>차량번호</label><input class="fi" id="bizCar" placeholder="12가 3456"></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>출발지</label><input class="fi" id="bizFrom" placeholder="출발지 입력"></div>
+      <div class="fg"><label>도착지</label><input class="fi" id="bizTo" placeholder="도착지 입력"></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>주행거리(km)</label><input type="number" class="fi" id="bizKm" placeholder="0" min="0"></div>
+      <div class="fg"><label>방문처</label><input class="fi" id="bizClient" placeholder="거래처명"></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>출근 시각</label><input type="time" class="fi" id="bizCheckin"></div>
+      <div class="fg"><label>퇴근 시각</label><input type="time" class="fi" id="bizCheckout"></div>
+    </div>
+    <div class="fg"><label>업무내용</label><textarea class="ft" id="bizMemo" placeholder="업무 내용 간략 기재"></textarea></div>
+    <div class="ma">
+      <button class="btn btn-gray" onclick="closeBizModal()">취소</button>
+      <button class="btn btn-blue" onclick="saveBizRecord()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- KM 수정 모달 -->
+<div class="ov" id="kmMod">
+  <div class="modal">
+    <h3>✏ 주행거리 수정</h3>
+    <p id="kmModDesc" style="margin-bottom:12px"></p>
+    <div class="fg" style="margin-top:0">
+      <label>주행거리(km)</label>
+      <input type="number" class="fi" id="kmModVal" placeholder="0" min="0">
+    </div>
+    <input type="hidden" id="kmModId">
+    <div class="ma">
+      <button class="btn btn-gray" onclick="closeKmModal()">취소</button>
+      <button class="btn btn-blue" onclick="saveKmEdit()">수정</button>
     </div>
   </div>
 </div>
@@ -464,32 +569,31 @@ tr:hover td{background:rgba(96,165,250,.03)}
 let D = {employees:[], records:[], presets:{}};
 let emp = '', yr = new Date().getFullYear(), mo = new Date().getMonth()+1;
 let preset = null, curTab = '입력';
+let pinVerified = false; // 관리자 PIN 인증 상태
+
 const pad = n => String(n).padStart(2,'0');
 const num = n => Number(n||0).toLocaleString();
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); // [버그수정] XSS 방지
+
 const api = async (url, opt) => {
   try {
     const r = await fetch(url, opt);
     return await r.json();
   } catch(e) {
-    if (location.protocol === 'file:') {
-      throw new Error('file_protocol');
-    }
+    if (location.protocol === 'file:') throw new Error('file_protocol');
     throw new Error('서버에 연결할 수 없습니다. 시작.bat으로 서버를 먼저 실행해주세요.');
   }
 };
 
 // ── 초기화 ──
 async function init() {
-  // file:// 직접 열기 감지
   if (location.protocol === 'file:') {
     document.getElementById('fileBanner').style.display = 'block';
     return;
   }
   setToday();
   updMonth();
-  updateApiKeyUI(); // 카카오 API 키 상태 표시
   await reload();
-  // 마지막 선택 사원 복원
   const last = localStorage.getItem('vl_emp');
   if (last && D.employees.includes(last)) {
     document.getElementById('empSel').value = last;
@@ -518,7 +622,7 @@ function renderEmpSel(keep) {
 async function pickEmp(name) {
   emp = name;
   localStorage.setItem('vl_emp', name);
-  document.querySelector('.nav-l').innerHTML = `🚗 차량업무일지 <span>/ ${name||'더 맛있는 하루'}</span>`;
+  document.getElementById('navTitle').innerHTML = `🚗 차량업무일지 <span>/ ${esc(name||'더 맛있는 하루')}</span>`;
   preset = D.presets[name] || null;
   render();
   updateCheckinCard();
@@ -532,15 +636,27 @@ function chMon(d) { mo+=d; if(mo>12){mo=1;yr++} if(mo<1){mo=12;yr--} updMonth();
 function goNow() { yr=new Date().getFullYear(); mo=new Date().getMonth()+1; updMonth(); render(); }
 
 // ── 탭 ──
+const ALL_TABS = ['입력','목록','요약','자량관리'];
 function tab(name) {
   curTab = name;
-  const TABS = ['입력','목록','요약','차량'];
-  TABS.forEach((t,i) => {
+  ALL_TABS.forEach((t, i) => {
     document.getElementById('tab-'+t).style.display = t===name?'block':'none';
     document.querySelectorAll('.tab')[i].className = 'tab'+(t===name?' on':'');
   });
-  if (name==='차량') renderVehicleTab();
-  render();
+  if (name === '자량관리') renderVehicleTab();
+  else render();
+}
+
+// ── 근무시간 계산 ──
+function calcWorkHours(checkin, checkout) {
+  if (!checkin || !checkout) return null;
+  const [ch, cm] = checkin.split(':').map(Number);
+  const [oh, om] = checkout.split(':').map(Number);
+  const mins = (oh * 60 + om) - (ch * 60 + cm);
+  if (mins <= 0) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return { total: mins, text: `${h}시간 ${m > 0 ? m + '분' : ''}`.trim() };
 }
 
 // ── 렌더 ──
@@ -551,19 +667,32 @@ function render() {
   );
   recs.sort((a,b) => b.date > a.date ? 1 : -1);
 
-  // stats
   const km   = recs.reduce((s,r)=>s+Number(r.km||0),0);
-  const com  = new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size;
+  const com  = recs.filter(r=>r.type==='commute').length;
   const biz  = recs.filter(r=>r.type==='business').length;
   const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
-  document.getElementById('sKm').innerHTML  = `${num(km)}<span class="stat-u">km</span>`;
-  document.getElementById('sCom').innerHTML = `${com}<span class="stat-u">회</span>`;
-  document.getElementById('sBiz').innerHTML = `${biz}<span class="stat-u">회</span>`;
-  document.getElementById('sFuel').innerHTML= `${num(fuel)}<span class="stat-u">원</span>`;
+
+  // 근무시간 합산
+  let totalWorkMins = 0;
+  recs.forEach(r => {
+    if (r.checkin_time && r.checkout_time) {
+      const wh = calcWorkHours(r.checkin_time, r.checkout_time);
+      if (wh) totalWorkMins += wh.total;
+    }
+  });
+  const workH = Math.floor(totalWorkMins / 60);
+  const workM = totalWorkMins % 60;
+
+  document.getElementById('sKm').innerHTML   = `${num(km)}<span class="stat-u">km</span>`;
+  document.getElementById('sCom').innerHTML  = `${com}<span class="stat-u">회</span>`;
+  document.getElementById('sBiz').innerHTML  = `${biz}<span class="stat-u">회</span>`;
+  document.getElementById('sFuel').innerHTML = `${num(fuel)}<span class="stat-u">원</span>`;
+  document.getElementById('sHours').innerHTML = totalWorkMins > 0
+    ? `${workH}<span class="stat-u">h ${workM > 0 ? workM+'m' : ''}</span>`
+    : `-<span class="stat-u">h</span>`;
   document.getElementById('rCnt').textContent = recs.length+'건';
 
   updateCheckinCard();
-  if (curTab==='차량') { renderVehicleTab(); return; }
   if (curTab==='입력') renderTable(recs,'rTable');
   if (curTab==='목록') {
     document.getElementById('listTitle').textContent = `${emp} — ${yr}년 ${mo}월`;
@@ -577,6 +706,7 @@ function bdg(t) {
   if(t==='commute')  return '<span class="bd bd-c">출퇴근</span>';
   if(t==='business') return '<span class="bd bd-b">외근</span>';
   if(t==='fuel')     return '<span class="bd bd-f">주유</span>';
+  return '';
 }
 
 function renderTable(recs, id) {
@@ -584,85 +714,103 @@ function renderTable(recs, id) {
   if (!recs.length) { el.innerHTML='<div class="empty">🚗 기록 없음</div>'; return; }
   el.innerHTML = `<table><thead><tr>
     <th>날짜</th><th>유형</th><th>차량</th><th>출발→도착</th>
-    <th>주행</th><th>방문처</th><th>주유금액</th><th>업무내용</th><th></th>
+    <th>주행</th><th>출근시각</th><th>퇴근시각</th><th>근무시간</th><th>주유금액</th><th>업무내용</th><th></th>
   </tr></thead><tbody>` +
-  recs.map(r=>`<tr>
-    <td class="tm">${r.date?.replace(/-/g,'/')}</td>
-    <td>${bdg(r.type)}</td>
-    <td class="tm">${r.car||'-'}</td>
-    <td class="tc">${r.from||''}${r.to?' → '+r.to:''}</td>
-    <td class="tm">${r.km?num(r.km)+'km':'-'}</td>
-    <td class="tc">${r.client||'-'}</td>
-    <td class="tm">${r.fuel?num(r.fuel)+'원':'-'}</td>
-    <td class="tc">${r.memo||'-'}</td>
-    <td><button class="btn-red" onclick="delRec('${r.id}')">삭제</button></td>
-  </tr>`).join('') + '</tbody></table>';
+  recs.map(r => {
+    const wh = calcWorkHours(r.checkin_time, r.checkout_time);
+    const whClass = wh && wh.total > 600 ? 'work-time long' : 'work-time'; // 10시간+ 경고색
+    return `<tr>
+      <td class="tm">${esc(r.date?.replace(/-/g,'/'))}</td>
+      <td>${bdg(r.type)}</td>
+      <td class="tm">${esc(r.car||'-')}</td>
+      <td class="tc">${esc(r.from||'')}${r.to?' → '+esc(r.to):''}</td>
+      <td class="tm" style="white-space:nowrap">${r.km?num(r.km)+'km':'-'} <button class="btn-red" style="font-size:10px;padding:1px 5px;margin-left:2px" onclick="openKmModal('${esc(r.id)}','${esc(r.date)}',${Number(r.km||0)})">수정</button></td>
+      <td class="tm">${esc(r.checkin_time||'-')}</td>
+      <td class="tm" id="co_${esc(r.id)}">${r.checkout_time ? esc(r.checkout_time) : (r.type==='commute' ? '<span style="color:#fbbf24;font-size:10px">미기록</span>' : '-')}</td>
+      <td class="tm">${wh ? '<span class="'+whClass+'" style="font-size:11px">'+esc(wh.text)+'</span>' : '-'}</td>
+      <td class="tm">${r.fuel?num(r.fuel)+'원':'-'}</td>
+      <td class="tc">${esc(r.memo||'-')}</td>
+      <td style="white-space:nowrap">
+        ${r.type==='commute' && !r.checkout_time ? `<button class="btn-green btn-sm btn" onclick="quickCheckout('${esc(r.id)}')" style="font-size:11px;padding:3px 8px;margin-right:4px">퇴근</button>` : ''}
+        <button class="btn-red" onclick="delRec('${esc(r.id)}')">삭제</button>
+      </td>
+    </tr>`;
+  }).join('') + '</tbody></table>';
 }
 
 function renderSum() {
   document.getElementById('sGrid').innerHTML = D.employees.map(e => {
     const recs = D.records.filter(r => r.emp===e && r.date?.startsWith(`${yr}-${pad(mo)}`));
     const km   = recs.reduce((s,r)=>s+Number(r.km||0),0);
-    const com  = new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size;
+    const com  = recs.filter(r=>r.type==='commute').length;
     const biz  = recs.filter(r=>r.type==='business').length;
     const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
+    let totalMins = 0;
+    recs.forEach(r => {
+      const wh = calcWorkHours(r.checkin_time, r.checkout_time);
+      if (wh) totalMins += wh.total;
+    });
+    const wText = totalMins > 0 ? `${Math.floor(totalMins/60)}h ${totalMins%60>0?totalMins%60+'m':''}`.trim() : '-';
     return `<div class="ec">
-      <div class="ec-n">${e}</div>
+      <div class="ec-n">${esc(e)}</div>
       <div class="ec-s">${yr}년 ${mo}월 · ${recs.length}건</div>
       <div class="ec-g">
         <div class="es"><div class="es-l">총 주행</div><div class="es-v" style="color:#60a5fa">${num(km)}<span style="font-size:10px;color:#9ca3af"> km</span></div></div>
         <div class="es"><div class="es-l">출퇴근</div><div class="es-v" style="color:#34d399">${com}<span style="font-size:10px;color:#9ca3af"> 회</span></div></div>
         <div class="es"><div class="es-l">외근</div><div class="es-v" style="color:#fb923c">${biz}<span style="font-size:10px;color:#9ca3af"> 회</span></div></div>
-        <div class="es"><div class="es-l">주유금액</div><div class="es-v" style="color:#fbbf24;font-size:13px">${num(fuel)}<span style="font-size:10px;color:#9ca3af"> 원</span></div></div>
+        <div class="es"><div class="es-l">근무시간</div><div class="es-v" style="color:#a78bfa;font-size:13px">${wText}</div></div>
+        <div class="es" style="grid-column:1/-1"><div class="es-l">주유금액</div><div class="es-v" style="color:#fbbf24;font-size:13px">${num(fuel)}<span style="font-size:10px;color:#9ca3af"> 원</span></div></div>
       </div>
     </div>`;
-  }).join('') || '<div style="color:#6b7280">등록된 사원 없음</div>';
+  }).join('') || '<div style="color:#6b7280;padding:16px">등록된 사원 없음</div>';
 }
 
 // ── 폼 ──
-function setToday() { setDateOffset(0); }
-function setDateOffset(days) {
+function setToday() {
   const t = new Date();
-  t.setDate(t.getDate() + days);
   document.getElementById('fDate').value = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
 }
 function typeChange() {
   const t = document.getElementById('fType').value;
   if (t==='commute' && preset) {
-    if(preset.from) document.getElementById('fFrom').value = preset.from;
-    if(preset.to)   document.getElementById('fTo').value   = preset.to;
-    // 왕복 거리를 편도로 나눠서 입력 (레코드 1건당 편도)
-    if(preset.km) {
-      const oneKm = Math.round(Number(preset.km)/2*10)/10;
-      document.getElementById('fKm').value = oneKm;
-    }
-    if(preset.car)  document.getElementById('fCar').value  = preset.car;
-    updateNaverLink();
-    toast(`출퇴근 자동입력 ✓ (편도 ${Math.round(Number(preset.km||0)/2*10)/10}km)`);
+    if(preset.from)          document.getElementById('fFrom').value = preset.from;
+    if(preset.to)            document.getElementById('fTo').value   = preset.to;
+    if(preset.km)            document.getElementById('fKm').value   = preset.km;
+    if(preset.car)           document.getElementById('fCar').value  = preset.car;
+    if(preset.checkin_time)  document.getElementById('fCheckinTime').value = preset.checkin_time;
+    if(preset.checkout_time) document.getElementById('fCheckoutTime').value = preset.checkout_time;
   }
+  updateNaverLink();
 }
 function clearForm() {
-  ['fFrom','fTo','fKm','fFuel','fClient','fMemo','fCar'].forEach(id=>document.getElementById(id).value='');
+  ['fFrom','fTo','fKm','fFuel','fClient','fMemo','fCar','fCheckinTime','fCheckoutTime'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fType').value = 'commute';
   setToday();
+  updateNaverLink();
 }
 async function saveRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const date = document.getElementById('fDate').value;
   if (!date) { toast('날짜를 입력하세요','err'); return; }
+  const km = Number(document.getElementById('fKm').value || 0);
+  const fuel = Number(document.getElementById('fFuel').value || 0);
+  if (km < 0 || fuel < 0) { toast('주행거리/주유금액은 0 이상이어야 합니다','err'); return; }
   const r = {
     emp, date,
-    type:   document.getElementById('fType').value,
-    car:    document.getElementById('fCar').value.trim(),
-    from:   document.getElementById('fFrom').value.trim(),
-    to:     document.getElementById('fTo').value.trim(),
-    km:     document.getElementById('fKm').value,
-    fuel:   document.getElementById('fFuel').value,
-    client: document.getElementById('fClient').value.trim(),
-    memo:   document.getElementById('fMemo').value.trim(),
+    type:          document.getElementById('fType').value,
+    car:           document.getElementById('fCar').value.trim(),
+    from:          document.getElementById('fFrom').value.trim(),
+    to:            document.getElementById('fTo').value.trim(),
+    km,
+    fuel,
+    client:        document.getElementById('fClient').value.trim(),
+    memo:          document.getElementById('fMemo').value.trim(),
+    checkin_time:  document.getElementById('fCheckinTime').value,
+    checkout_time: document.getElementById('fCheckoutTime').value,
   };
   const res = await api('/api/record', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
   if (res.ok) { D = res.data; clearForm(); render(); toast('저장됨 ✓'); }
+  else toast(res.msg||'저장 실패','err');
 }
 async function delRec(id) {
   if (!confirm('삭제할까요?')) return;
@@ -670,24 +818,74 @@ async function delRec(id) {
   if (res.ok) { D = res.data; render(); toast('삭제됨'); }
 }
 
+// ── 빠른 퇴근 기록 ──
+async function quickCheckout(id) {
+  const now = new Date();
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const res = await api('/api/record/'+id, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ checkout_time: timeStr })
+  });
+  if (res.ok) {
+    D = res.data;
+    render();
+    updateCheckinCard();
+    toast(`퇴근 시각 ${timeStr} 기록됨 ✓`);
+  }
+}
+
+// ── 관리자 PIN ──
+async function verifyPin() {
+  const pin = document.getElementById('empPin').value;
+  if (!pin) { showPinMsg('PIN을 입력해주세요','err'); return; }
+  try {
+    const res = await api('/api/verify-pin', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
+    if (res.ok) {
+      pinVerified = true;
+      document.getElementById('pinSection').style.display = 'none';
+      document.getElementById('empSection').style.display = 'block';
+      renderEmpList();
+    } else {
+      showPinMsg('PIN이 올바르지 않습니다','err');
+      document.getElementById('empPin').value = '';
+      document.getElementById('empPin').focus();
+    }
+  } catch(e) { showPinMsg(e.message,'err'); }
+}
+function showPinMsg(msg, type) {
+  const el = document.getElementById('pinMsg');
+  el.textContent = msg;
+  el.className = 'msg '+(type||'ok');
+  el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 2500);
+}
+
 // ── 사원 관리 모달 ──
 function openEmpModal() {
-  renderEmpList();
+  pinVerified = false;
+  document.getElementById('pinSection').style.display = 'block';
+  document.getElementById('empSection').style.display = 'none';
+  document.getElementById('empPin').value = '';
   document.getElementById('empMod').classList.add('on');
-  setTimeout(()=>document.getElementById('newEmp').focus(),100);
+  setTimeout(()=>document.getElementById('empPin').focus(),100);
 }
 function closeEmpModal() {
   document.getElementById('empMod').classList.remove('on');
-  document.getElementById('newEmp').value = '';
+  document.getElementById('empPin').value = '';
+  document.getElementById('pinMsg').style.display = 'none';
   document.getElementById('empMsg').style.display = 'none';
+  pinVerified = false;
 }
 function renderEmpList() {
   const el = document.getElementById('empList');
-  if (!D.employees.length) { el.innerHTML='<div style="text-align:center;padding:16px;color:#6b7280;font-size:13px">등록된 사원 없음</div>'; return; }
+  if (!D.employees.length) {
+    el.innerHTML='<div style="text-align:center;padding:16px;color:#6b7280;font-size:13px">등록된 사원 없음</div>'; return;
+  }
   el.innerHTML = D.employees.map(e=>`
     <div class="emp-item">
-      <span style="font-weight:500">${e}</span>
-      <button class="btn-red" onclick="delEmp('${e}')">삭제</button>
+      <span style="font-weight:500">${esc(e)}</span>
+      <button class="btn-red" onclick="delEmp('${esc(e)}')">삭제</button>
     </div>`).join('');
 }
 function showMsg(msg, type) {
@@ -701,15 +899,14 @@ async function addEmp() {
   const input = document.getElementById('newEmp');
   const name = input.value.trim();
   if (!name) { showMsg('이름을 입력해주세요','err'); return; }
-
+  const pin = document.getElementById('empPin').value || sessionStorage.getItem('vl_pin');
   const btn = document.getElementById('addBtn');
   btn.disabled = true; btn.textContent = '추가 중...';
-
   try {
     const res = await api('/api/employee', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({name})
+      body: JSON.stringify({name, pin})
     });
     if (!res.ok) { showMsg('⚠ '+res.msg,'err'); input.select(); return; }
     D = res.data;
@@ -717,7 +914,6 @@ async function addEmp() {
     showMsg(name+' 추가됨 ✓','ok');
     renderEmpList();
     renderEmpSel(name);
-    // 새 사원 자동 선택
     document.getElementById('empSel').value = name;
     await pickEmp(name);
   } catch(e) {
@@ -731,31 +927,168 @@ async function addEmp() {
   }
 }
 async function delEmp(name) {
-  if (!confirm(name+' 삭제?')) return;
-  const res = await api('/api/employee/'+encodeURIComponent(name), {method:'DELETE'});
+  const pin = document.getElementById('empPin').value;
+  const recCount = D.records.filter(r=>r.emp===name).length;
+  const msg = recCount > 0
+    ? `${name} 삭제 시 기록 ${recCount}건도 모두 삭제됩니다.\n정말 삭제할까요?`
+    : `${name}을(를) 삭제할까요?`;
+  if (!confirm(msg)) return;
+  const res = await api('/api/employee/'+encodeURIComponent(name), {
+    method:'DELETE',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({pin})
+  });
   if (res.ok) {
     D = res.data;
     renderEmpList();
     renderEmpSel();
     if (emp===name) { emp=''; document.getElementById('empSel').value=''; render(); }
-    toast(name+' 삭제됨');
+    toast(`${name} 삭제됨 (기록 ${res.deletedRecords||0}건 포함)`);
+  } else {
+    showMsg('⚠ '+res.msg,'err');
   }
 }
 
 // ── 출퇴근 설정 ──
 function openPreset() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
-  document.getElementById('pFrom').value = preset?.from||'';
-  document.getElementById('pTo').value   = preset?.to||'';
-  document.getElementById('pKm').value   = preset?.km||'';
-  document.getElementById('pCar').value  = preset?.car||'';
+  document.getElementById('pFrom').value         = preset?.from||'';
+  document.getElementById('pTo').value           = preset?.to||'';
+  document.getElementById('pKm').value           = preset?.km||'';
+  document.getElementById('pCar').value          = preset?.car||'';
+  document.getElementById('pCheckinTime').value  = preset?.checkin_time||'';
+  document.getElementById('pCheckoutTime').value = preset?.checkout_time||'';
   document.getElementById('preMod').classList.add('on');
 }
 function closePreset() { document.getElementById('preMod').classList.remove('on'); }
 async function savePreset() {
-  const p = { emp, from:document.getElementById('pFrom').value.trim(), to:document.getElementById('pTo').value.trim(), km:document.getElementById('pKm').value, car:document.getElementById('pCar').value.trim() };
+  const p = {
+    emp,
+    from:          document.getElementById('pFrom').value.trim(),
+    to:            document.getElementById('pTo').value.trim(),
+    km:            document.getElementById('pKm').value,
+    car:           document.getElementById('pCar').value.trim(),
+    checkin_time:  document.getElementById('pCheckinTime').value,
+    checkout_time: document.getElementById('pCheckoutTime').value,
+  };
   await api('/api/preset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
   D.presets[emp]=p; preset=p; closePreset(); toast('출퇴근 설정 저장됨 ✓');
+}
+
+// ── 출근 체크 ──
+function updateCheckinCard() {
+  if (!emp) { document.getElementById('commuteCard').style.display='none'; return; }
+  document.getElementById('commuteCard').style.display='flex';
+  const today = todayStr();
+  const todayRec = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute');
+  const checkinDone = !!todayRec;
+  const checkoutDone = todayRec && !!todayRec.checkout_time;
+
+  const btn = document.getElementById('checkinBtn');
+  const outBtn = document.getElementById('checkoutBtn');
+  const card = document.getElementById('commuteCard');
+  const title = document.getElementById('commuteTitle');
+  const sub = document.getElementById('commuteSubTitle');
+  const wDisp = document.getElementById('workTimeDisplay');
+
+  if (checkoutDone) {
+    // 출근+퇴근 모두 완료
+    card.className = 'commute-card commute-done';
+    title.textContent = '✅ 오늘 출퇴근 완료';
+    sub.textContent = today + ' · 출퇴근 기록 완료';
+    btn.textContent = '출근 완료';
+    btn.className = 'btn-checkin done';
+    outBtn.textContent = '퇴근 완료';
+    outBtn.className = 'btn-checkout done';
+    outBtn.style.display = 'block';
+    const wh = calcWorkHours(todayRec.checkin_time, todayRec.checkout_time);
+    if (wh) {
+      wDisp.style.display='block';
+      wDisp.className = wh.total > 600 ? 'work-time long' : 'work-time';
+      wDisp.textContent = `⏱ 근무시간: ${wh.text}`;
+    } else {
+      wDisp.style.display='none';
+    }
+  } else if (checkinDone) {
+    // 출근만 완료
+    card.className = 'commute-card';
+    title.textContent = '🏠 퇴근 체크';
+    sub.textContent = today + ` · 출근 ${todayRec.checkin_time||'기록됨'} — 퇴근 미기록`;
+    btn.textContent = '출근 완료';
+    btn.className = 'btn-checkin done';
+    outBtn.style.display = 'block';
+    outBtn.textContent = '🏠 퇴근 등록';
+    outBtn.className = 'btn-checkout';
+    wDisp.style.display = 'none';
+  } else {
+    // 아직 미출근
+    card.className = 'commute-card';
+    outBtn.style.display = 'none';
+    wDisp.style.display = 'none';
+    if (preset) {
+      title.textContent = '🚗 오늘 출근 체크';
+      sub.textContent = `${preset.from||'?'} → ${preset.to||'?'} · ${preset.km||'?'}km (${preset.car||''})`;
+    } else {
+      title.textContent = '🚗 오늘 출근 체크';
+      sub.textContent = '⚙ 출퇴근 설정에서 고정값을 먼저 설정해주세요';
+    }
+    btn.textContent = '✅ 출근 등록';
+    btn.className = 'btn-checkin';
+  }
+}
+
+function todayStr() {
+  const t = new Date();
+  return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
+}
+
+async function doCheckin() {
+  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
+  if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
+  const today = todayStr();
+  const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute');
+  if (already) { toast('오늘 출근이 이미 등록됐습니다'); return; }
+  const now = new Date();
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const r = {
+    emp, date:today, type:'commute',
+    car:  preset.car||'',
+    from: preset.from||'',
+    to:   preset.to||'',
+    km:   preset.km||'',
+    fuel: '', client: '',
+    memo: '출근',
+    checkin_time:  timeStr,
+    checkout_time: '',
+  };
+  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+  if (res.ok) {
+    D = res.data;
+    const now2 = new Date();
+    yr = now2.getFullYear(); mo = now2.getMonth()+1;
+    updMonth(); render(); updateCheckinCard();
+    toast(`출근 등록됨 ✓ (${timeStr})`);
+  }
+}
+
+async function doCheckout() {
+  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
+  const today = todayStr();
+  const rec = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute');
+  if (!rec) { toast('오늘 출근 기록이 없습니다','err'); return; }
+  if (rec.checkout_time) { toast('이미 퇴근이 등록됐습니다'); return; }
+  const now = new Date();
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const res = await api('/api/record/'+rec.id, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ checkout_time: timeStr })
+  });
+  if (res.ok) {
+    D = res.data;
+    render(); updateCheckinCard();
+    toast(`퇴근 등록됨 ✓ (${timeStr})`);
+  }
 }
 
 // ── 내보내기 ──
@@ -768,13 +1101,33 @@ function expCSV() {
   const recs = curRecs();
   if (!recs.length) { toast('기록 없음','err'); return; }
   const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
-  const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','주유금액','방문처','업무내용']];
-  recs.forEach(r=>rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']));
+  const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','근무시간','주유금액','방문처','업무내용']];
+  recs.forEach(r => {
+    const wh = calcWorkHours(r.checkin_time, r.checkout_time);
+    rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',wh?wh.text:'',r.fuel||0,r.client||'',r.memo||'']);
+  });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
   a.download=`차량업무일지_${emp}_${yr}${pad(mo)}.csv`; a.click();
 }
+
+// 전체 직원 월간 CSV
+function expAllCSV() {
+  const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
+  const rows = [['사원','날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','근무시간','주유금액','방문처','업무내용']];
+  const recs = D.records.filter(r=>r.date?.startsWith(`${yr}-${pad(mo)}`)).sort((a,b)=>(a.emp+a.date)>(b.emp+b.date)?1:-1);
+  if (!recs.length) { toast('기록 없음','err'); return; }
+  recs.forEach(r => {
+    const wh = calcWorkHours(r.checkin_time, r.checkout_time);
+    rows.push([r.emp,r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',wh?wh.text:'',r.fuel||0,r.client||'',r.memo||'']);
+  });
+  const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`차량업무일지_전체_${yr}${pad(mo)}.csv`; a.click();
+}
+
 function expPDF() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const recs = curRecs();
@@ -783,16 +1136,19 @@ function expPDF() {
   const bc={commute:'#2563eb',business:'#ea580c',fuel:'#16a34a'};
   const bg={commute:'#dbeafe',business:'#ffedd5',fuel:'#dcfce7'};
   const km=recs.reduce((s,r)=>s+Number(r.km||0),0);
-  const com=new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size;
+  const com=recs.filter(r=>r.type==='commute').length;
   const biz=recs.filter(r=>r.type==='business').length;
   const fl=recs.reduce((s,r)=>s+Number(r.fuel||0),0);
-  const w=window.open('','_blank','width=900,height=700');
+  let totalMins=0;
+  recs.forEach(r=>{const wh=calcWorkHours(r.checkin_time,r.checkout_time);if(wh)totalMins+=wh.total;});
+  const wText=totalMins>0?`${Math.floor(totalMins/60)}h ${totalMins%60>0?totalMins%60+'m':''}`.trim():'-';
+  const w=window.open('','_blank','width=960,height=750');
   w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Apple SD Gothic Neo',Malgun Gothic,sans-serif;font-size:11px;color:#111;padding:20px 24px}
   h1{font-size:17px;font-weight:900}.sub{font-size:10px;color:#666;margin-top:2px}
   .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
   .hdr-r{text-align:right;font-size:11px;color:#444;line-height:1.7}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px}
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:14px}
   .s{background:#f4f6fb;border:1px solid #dde;border-radius:7px;padding:8px 11px}
   .sl{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
   .sv{font-size:15px;font-weight:700}
@@ -814,17 +1170,20 @@ function expPDF() {
     <div class="s"><div class="sl">출퇴근</div><div class="sv" style="color:#16a34a">${com}<span style="font-size:10px"> 회</span></div></div>
     <div class="s"><div class="sl">외근</div><div class="sv" style="color:#ea580c">${biz}<span style="font-size:10px"> 회</span></div></div>
     <div class="s"><div class="sl">주유금액</div><div class="sv" style="color:#b45309">${fl.toLocaleString()}<span style="font-size:10px"> 원</span></div></div>
+    <div class="s"><div class="sl">근무시간</div><div class="sv" style="color:#7c3aed">${wText}</div></div>
   </div>
-  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>방문처</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
-  ${recs.map(r=>`<tr>
+  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>출근시각</th><th>퇴근시각</th><th>근무시간</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
+  ${recs.map(r=>{const wh=calcWorkHours(r.checkin_time,r.checkout_time);return`<tr>
     <td>${r.date||''}</td>
     <td><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:${bg[r.type]};color:${bc[r.type]}">${map[r.type]||r.type}</span></td>
     <td>${r.car||'-'}</td><td>${r.from||''}${r.to?' → '+r.to:''}</td>
     <td style="text-align:right">${r.km?Number(r.km).toLocaleString()+'km':'-'}</td>
-    <td>${r.client||'-'}</td>
+    <td>${r.checkin_time||'-'}</td>
+    <td>${r.checkout_time||'-'}</td>
+    <td>${wh?wh.text:'-'}</td>
     <td style="text-align:right">${r.fuel?Number(r.fuel).toLocaleString()+'원':'-'}</td>
     <td>${r.memo||'-'}</td>
-  </tr>`).join('')}
+  </tr>`}).join('')}
   </tbody></table>
   <div class="signs"><div class="sign"><div class="lbl">작성자</div><div class="line"></div></div><div class="sign"><div class="lbl">확인자</div><div class="line"></div></div></div>
   <div class="foot"><span>(주)더 맛있는 하루 — ${yr}년 ${mo}월</span><span>${emp} | ${new Date().toLocaleString('ko-KR')}</span></div>
@@ -832,346 +1191,105 @@ function expPDF() {
   w.document.close();
 }
 
+// ── 백업 / 복원 ──
+function doBackup() {
+  window.location.href = '/api/export';
+  toast('백업 파일 다운로드 중...');
+}
+async function doRestore(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const pin = document.getElementById('empPin').value;
+  if (!pin) { toast('PIN을 먼저 입력하세요','err'); input.value=''; return; }
+  if (!confirm('현재 모든 데이터가 백업 파일로 교체됩니다. 계속할까요?')) { input.value=''; return; }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const res = await api('/api/import', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({...data, pin})
+    });
+    if (res.ok) {
+      D = res.data;
+      renderEmpSel();
+      render();
+      toast('데이터 복원 완료 ✓');
+    } else {
+      toast('복원 실패: '+res.msg,'err');
+    }
+  } catch(e) {
+    toast('파일 읽기 오류: '+e.message,'err');
+  }
+  input.value='';
+}
 
-// ── 주소 자동완성 (네이버 지도 검색 API 무료 프록시) ──
-// 행정구역 데이터 (오프라인 - API 키 불필요)
+// ── 주소 자동완성 ──
 const REGIONS = [
-  // 서울
   '서울 강남구','서울 강북구','서울 강동구','서울 강서구','서울 관악구','서울 광진구',
   '서울 구로구','서울 금천구','서울 노원구','서울 도봉구','서울 동대문구','서울 동작구',
   '서울 마포구','서울 서대문구','서울 서초구','서울 성동구','서울 성북구','서울 송파구',
   '서울 양천구','서울 영등포구','서울 용산구','서울 은평구','서울 종로구','서울 중구','서울 중랑구',
-  // 경기
   '경기 수원시','경기 성남시','경기 안양시','경기 안산시','경기 용인시','경기 부천시',
   '경기 광명시','경기 평택시','경기 과천시','경기 오산시','경기 시흥시','경기 군포시',
   '경기 의왕시','경기 하남시','경기 이천시','경기 안성시','경기 김포시','경기 화성시',
   '경기 광주시','경기 양주시','경기 포천시','경기 여주시','경기 고양시','경기 의정부시',
   '경기 구리시','경기 남양주시','경기 파주시','경기 양평군','경기 가평군','경기 연천군',
   '용인시 처인구','용인시 기흥구','용인시 수지구',
-  // 인천
   '인천 중구','인천 동구','인천 미추홀구','인천 연수구','인천 남동구','인천 부평구',
   '인천 계양구','인천 서구','인천 강화군','인천 옹진군',
-  // 부산
   '부산 중구','부산 서구','부산 동구','부산 영도구','부산 부산진구','부산 동래구',
   '부산 남구','부산 북구','부산 해운대구','부산 사하구','부산 금정구','부산 강서구',
   '부산 연제구','부산 수영구','부산 사상구','부산 기장군',
-  // 대구/대전/광주/울산
   '대구 중구','대구 동구','대구 서구','대구 남구','대구 북구','대구 수성구','대구 달서구','대구 달성군',
   '대전 동구','대전 중구','대전 서구','대전 유성구','대전 대덕구',
   '광주 동구','광주 서구','광주 남구','광주 북구','광주 광산구',
   '울산 중구','울산 남구','울산 동구','울산 북구','울산 울주군',
-  // 세종/제주
   '세종시','제주시','서귀포시',
-  // 충청
-  '충북 청주시','충북 충주시','충북 제천시','충북 청원군','충북 보은군','충북 옥천군',
+  '충북 청주시','충북 충주시','충북 제천시',
   '충남 천안시','충남 공주시','충남 보령시','충남 아산시','충남 서산시','충남 논산시','충남 계룡시','충남 당진시',
-  // 전라
   '전북 전주시','전북 군산시','전북 익산시','전북 정읍시','전북 남원시','전북 김제시',
   '전남 목포시','전남 여수시','전남 순천시','전남 나주시','전남 광양시',
-  // 경상
   '경북 포항시','경북 경주시','경북 김천시','경북 안동시','경북 구미시','경북 영주시','경북 영천시','경북 상주시',
   '경남 창원시','경남 진주시','경남 통영시','경남 사천시','경남 김해시','경남 밀양시','경남 거제시','경남 양산시',
-  // 강원
   '강원 춘천시','강원 원주시','강원 강릉시','강원 동해시','강원 태백시','강원 속초시','강원 삼척시',
 ];
 
 let acTimer = null;
-
-// ── 카카오 REST API 서버 프록시 지오코딩 ──
-// 서버(Railway)에서 직접 카카오 REST API를 호출 — CORS 문제 완전 해결
-// 서버에 KAKAO_REST_KEY 환경변수가 설정돼 있어야 합니다.
-let _serverKakaoStatus = null; // null=미확인, 'ok'=활성, 'nokey'=키없음, 'err'=오류
-
-async function checkServerKakao() {
-  if (_serverKakaoStatus) return _serverKakaoStatus;
-  try {
-    const r = await fetch(`${window.location.origin}/api/geocode?q=서울시청`);
-    const d = await r.json();
-    _serverKakaoStatus = (d.ok || d.msg === 'NOT_FOUND') ? 'ok' : 'nokey';
-  } catch(e) { _serverKakaoStatus = 'err'; }
-  return _serverKakaoStatus;
-}
-
-async function geocodeViaServer(addr) {
-  try {
-    const r = await fetch(`${window.location.origin}/api/geocode?q=${encodeURIComponent(addr)}`);
-    const d = await r.json();
-    if (d.ok) return { lat: d.lat, lon: d.lon, name: d.name, approx: false, matchedQuery: addr };
-  } catch(e) {}
-  return null;
-}
-
-function toggleApiKeyPanel() {
-  const panel = document.getElementById('apiKeyPanel');
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) {
-    const statusEl = document.getElementById('apiKeyStatus');
-    if (statusEl) {
-      statusEl.textContent = '🔄 서버 상태 확인 중...';
-      statusEl.style.color = '#9ca3af';
-      _serverKakaoStatus = null; // 강제 재확인
-      checkServerKakao().then(s => {
-        if (s === 'ok') {
-          statusEl.textContent = '✅ 서버에 카카오 REST API 키가 설정되어 있습니다 — 거리계산이 정상 작동합니다';
-          statusEl.style.color = '#34d399';
-        } else if (s === 'nokey') {
-          statusEl.textContent = '⚠️ 서버에 KAKAO_REST_KEY 환경변수가 없습니다 — 아래 안내를 따라 설정하세요';
-          statusEl.style.color = '#f87171';
-        } else {
-          statusEl.textContent = '❌ 서버에 연결할 수 없습니다';
-          statusEl.style.color = '#f87171';
-        }
-      });
-    }
-  }
-}
-
-function updateApiKeyUI() {
-  const tag = document.getElementById('calcEngineTag');
-  const btn = document.getElementById('apiKeyToggleBtn');
-  checkServerKakao().then(s => {
-    if (!tag || !btn) return;
-    if (s === 'ok') {
-      tag.textContent = '카카오 지도'; tag.style.display = 'inline';
-      tag.style.background = 'rgba(255,210,0,.15)'; tag.style.color = '#fbbf24';
-      btn.textContent = '🔑 카카오 ✓'; btn.style.color = '#34d399';
-    } else {
-      tag.style.display = 'none';
-      btn.textContent = '🔑 서버 설정'; btn.style.color = '#4b5563';
-    }
-  });
-}
-
-// ── 거리 자동계산 (Nominatim 지오코딩 + OSRM 경로) ──
-// 주소를 점진적으로 줄여가며 검색 (번길→로→구→시 순으로 단계 축소)
-function addrFallbacks(addr) {
-  const add = (list, s) => { if (s && s.trim()) { list.push(s.trim()); list.push(s.trim() + ' 대한민국'); } };
-  const list = [addr, addr + ' 대한민국'];
-  const parts = addr.trim().split(/\s+/);
-
-  // ① 건물번호 제거 (끝 숫자)
-  if (/^\d/.test(parts[parts.length - 1])) add(list, parts.slice(0, -1).join(' '));
-
-  // ② 번길 포함 단어부터 잘라내기 ("경기 용인시 처인구 고림로162번길 15" → "경기 용인시 처인구")
-  const bunIdx = parts.findIndex(p => p.includes('번길'));
-  if (bunIdx > 0) add(list, parts.slice(0, bunIdx).join(' '));
-
-  // ③ 로/길 제거 (구 단위까지만)
-  const streetIdx = parts.findIndex(p => /[로길]$/.test(p));
-  if (streetIdx > 0) add(list, parts.slice(0, streetIdx).join(' '));
-
-  // ④ 구/군 단위 (예: "경기 용인시 처인구")
-  const guIdx = parts.findIndex(p => /[구군]$/.test(p));
-  if (guIdx >= 0) add(list, parts.slice(0, guIdx + 1).join(' '));
-
-  // ⑤ 시/특별시/광역시 단위 (예: "경기 용인시" 또는 "서울시")
-  const siIdx = parts.findIndex(p => /시$/.test(p));
-  if (siIdx >= 0) add(list, parts.slice(0, siIdx + 1).join(' '));
-
-  return [...new Set(list)];
-}
-
-async function geocodeAddr(addr) {
-  // 1순위: 서버 프록시 (카카오 REST API — Railway KAKAO_REST_KEY 환경변수 필요)
-  const serverResult = await geocodeViaServer(addr);
-  if (serverResult) return serverResult;
-
-  // 2순위: Nominatim (무료, 한국 상세주소 인식률 낮음) — 단계별 fallback
-  const queries = addrFallbacks(addr);
-  for (const q of queries) {
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 8000);
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3&countrycodes=kr&accept-language=ko`;
-      const r = await fetch(url, { headers: { 'User-Agent': 'vehiclelog-app/1.0' }, signal: ctrl.signal });
-      clearTimeout(tid);
-      const d = await r.json();
-      if (d[0]) {
-        const approx = !(q === addr || q === addr + ' 대한민국');
-        return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name, approx, matchedQuery: q };
-      }
-    } catch(e) { /* 다음 단계로 */ }
-  }
-  return null;
-}
-
-// 하버사인 공식: 두 좌표 간 직선거리(km)
-function haversineKm(a, b) {
-  const R = 6371, toRad = d => d * Math.PI / 180;
-  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
-  const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
-}
-
-// 직선거리 × 1.3 (한국 도로 우회 보정) — 외부 서버 불필요, 즉시 계산
-function getDrivingKm(fromCoord, toCoord) {
-  const straight = haversineKm(fromCoord, toCoord);
-  return Math.round(straight * 1.3 * 10) / 10;
-}
-
-async function autoCalcKm() {
-  const from = document.getElementById('fFrom').value.trim();
-  const to   = document.getElementById('fTo').value.trim();
-  if (!from || !to) { toast('출발지와 도착지를 먼저 입력하세요', 'err'); return; }
-
-  const btn  = document.getElementById('calcBtn');
-  const hint = document.getElementById('calcHint');
-  btn.textContent = '⏳ 계산 중...';
-  btn.disabled = true;
-  hint.textContent = '주소 검색 중...';
-
-  try {
-    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
-    if (!fc) {
-      hint.textContent = '❌ 출발지를 찾지 못했습니다 — 더 구체적으로 입력하거나 📍 검색을 이용하세요';
-      toast(`"${from}" 주소 인식 실패 — 도로명주소로 입력해보세요`, 'err');
-      return;
-    }
-    if (!tc) {
-      hint.textContent = '❌ 도착지를 찾지 못했습니다 — 더 구체적으로 입력하거나 📍 검색을 이용하세요';
-      toast(`"${to}" 주소 인식 실패 — 도로명주소로 입력해보세요`, 'err');
-      return;
-    }
-
-    const approxWarn = (fc.approx || tc.approx)
-      ? ` ⚠️ 상세주소 미인식 → 구/동 중심점 기준 근사치` : '';
-    hint.textContent = `📍 ${fc.matchedQuery||fc.name.split(',')[0]} → ${tc.matchedQuery||tc.name.split(',')[0]} 거리 계산 중...`;
-    const oneway = getDrivingKm(fc, tc);
-
-    const type  = document.getElementById('fType').value;
-    const isCommute = type === 'commute';
-    const km    = isCommute ? Math.round(oneway * 2 * 10) / 10 : oneway;
-    document.getElementById('fKm').value = km;
-
-    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
-    const msg = isCommute
-      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)${approxNote}`
-      : `✅ 편도 ${km}km 자동입력${approxNote}`;
-    hint.textContent = msg;
-    toast(approxNote ? `${km}km 입력됨${approxNote} — 네이버 지도로 확인 권장` : msg);
-  } catch(e) {
-    toast('거리 계산 중 오류가 발생했습니다', 'err');
-    hint.textContent = '❌ 계산 실패 — 📍 검색 후 네이버 지도로 확인하세요';
-  } finally {
-    btn.textContent = '🚗 거리 자동계산';
-    btn.disabled = false;
-  }
-}
-
-async function autoCalcPresetKm() {
-  const from = document.getElementById('pFrom').value.trim();
-  const to   = document.getElementById('pTo').value.trim();
-  if (!from || !to) { toast('집·회사 주소를 먼저 입력하세요', 'err'); return; }
-
-  const btn  = document.getElementById('preCalcBtn');
-  const hint = document.getElementById('preCalcHint');
-  btn.textContent = '⏳ 계산 중...';
-  btn.disabled = true;
-  hint.textContent = '주소 검색 중...';
-
-  try {
-    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
-    if (!fc) { toast(`"${from}" 주소를 찾지 못했습니다`, 'err'); return; }
-    if (!tc) { toast(`"${to}" 주소를 찾지 못했습니다`, 'err'); return; }
-
-    const oneway = getDrivingKm(fc, tc);
-    const roundtrip = Math.round(oneway * 2 * 10) / 10;
-    document.getElementById('pKm').value = roundtrip;
-    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
-    const msg = `✅ 왕복 ${roundtrip}km 자동입력 (편도 ${oneway}km)${approxNote}`;
-    hint.textContent = msg;
-    toast(msg);
-  } catch(e) {
-    toast('거리 계산 중 오류가 발생했습니다', 'err');
-    hint.textContent = '계산 실패 — 직접 입력해주세요';
-  } finally {
-    btn.textContent = '🚗 왕복 거리 자동계산';
-    btn.disabled = false;
-  }
-}
-
-// ── 주소 검색 (Daum Postcode 팝업) ──
-function searchAddr(targetId) {
-  if (typeof daum === 'undefined' || !daum.Postcode) {
-    toast('주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.','err');
-    return;
-  }
-  new daum.Postcode({
-    oncomplete: function(data) {
-      // 도로명주소 우선, 없으면 지번주소
-      const addr = data.roadAddress || data.jibunAddress || data.address;
-      document.getElementById(targetId).value = addr;
-      updateNaverLink();
-      // 출발지/도착지 자동완성 숨기기
-      if (targetId === 'fFrom') hideAc('acFrom');
-      if (targetId === 'fTo')   hideAc('acTo');
-    }
-  }).open();
-}
-
-// ── 포커스 시 내 장소 표시 ──
-function acFocus(input, listId) {
-  if (!preset || (!preset.from && !preset.to)) return;
-  acSearch(input, listId);
-}
-
-// ── 자동완성: 내 장소(집/회사) + 행정구역 ──
 function acSearch(input, listId) {
   clearTimeout(acTimer);
   const q = input.value.trim();
   const list = document.getElementById(listId);
-
+  if (q.length < 1) { list.style.display='none'; return; }
   acTimer = setTimeout(() => {
-    const items = [];
-
-    // 1) 내 장소 (preset.from=집, preset.to=회사) 우선 표시
-    if (preset) {
-      const myPlaces = [];
-      if (preset.from) myPlaces.push({ badge: '🏠 집',  val: preset.from });
-      if (preset.to)   myPlaces.push({ badge: '🏢 회사', val: preset.to  });
-
-      const matched = myPlaces.filter(p =>
-        !q || p.val.replace(/ /g,'').includes(q.replace(/ /g,''))
-      );
-      if (matched.length) {
-        items.push('<div class="ac-sep">내 장소</div>');
-        matched.forEach(p => {
-          const safeVal = p.val.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-          items.push(
-            `<div class="ac-item ac-preset" onmousedown="acPick('${input.id}','${listId}','${safeVal}')">` +
-            `<span class="ac-badge">${p.badge}</span>` +
-            `<span class="ac-name">${p.val}</span>` +
-            `</div>`
-          );
-        });
+    const results = REGIONS.filter(r => r.replace(/ /g,'').includes(q.replace(/ /g,''))).slice(0,8);
+    if (!results.length) { list.style.display='none'; return; }
+    // [버그수정] XSS 방지: textContent 사용 또는 안전한 하이라이트
+    list.innerHTML = '';
+    results.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'ac-item';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'ac-name';
+      // 하이라이트: 안전하게 처리
+      const qi = r.toLowerCase().indexOf(q.toLowerCase());
+      if (qi >= 0) {
+        nameEl.appendChild(document.createTextNode(r.slice(0, qi)));
+        const hl = document.createElement('span');
+        hl.className = 'ac-hl';
+        hl.textContent = r.slice(qi, qi + q.length);
+        nameEl.appendChild(hl);
+        nameEl.appendChild(document.createTextNode(r.slice(qi + q.length)));
+      } else {
+        nameEl.textContent = r;
       }
-    }
-
-    // 2) 행정구역 검색 (글자 입력이 있을 때만)
-    if (q.length >= 1) {
-      const results = REGIONS.filter(r =>
-        r.replace(/ /g,'').includes(q.replace(/ /g,''))
-      ).slice(0, 6);
-
-      if (results.length) {
-        if (items.length) items.push('<div class="ac-sep">지역</div>');
-        results.forEach(r => {
-          items.push(
-            `<div class="ac-item" onmousedown="acPick('${input.id}','${listId}','${r}')">` +
-            `<span class="ac-name">${r.replace(new RegExp(q.replace(/ /g,''),''), m => `<b style="color:#60a5fa">${m}</b>`)}</span>` +
-            `</div>`
-          );
-        });
-      }
-    }
-
-    if (!items.length) { list.style.display='none'; return; }
-    list.innerHTML = items.join('');
+      item.appendChild(nameEl);
+      item.addEventListener('mousedown', () => acPick(input.id, listId, r));
+      list.appendChild(item);
+    });
     list.style.display = 'block';
-  }, 80);
+  }, 120);
 }
-
 function acPick(inputId, listId, val) {
   document.getElementById(inputId).value = val;
   document.getElementById(listId).style.display = 'none';
@@ -1190,10 +1308,10 @@ function acKey(e, listId, inputId) {
   else if (e.key==='Escape') { list.style.display='none'; return; }
   else return;
   items.forEach(i=>i.classList.remove('ac-sel'));
-  if(items[idx]) { items[idx].classList.add('ac-sel'); items[idx].style.background='#374151'; }
+  if(items[idx]) items[idx].classList.add('ac-sel');
 }
 
-// ── 네이버 지도 길찾기 링크 ──
+// 네이버 지도 길찾기 링크
 function updateNaverLink() {
   const from = document.getElementById('fFrom')?.value.trim();
   const to   = document.getElementById('fTo')?.value.trim();
@@ -1207,256 +1325,6 @@ function updateNaverLink() {
   }
 }
 
-// ── 출근 체크 ──
-function updateCheckinCard() {
-  if (!emp) { document.getElementById('commuteCard').style.display='none'; return; }
-  document.getElementById('commuteCard').style.display='flex';
-  const today = todayStr();
-  const alreadyDone = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute');
-  const btn = document.getElementById('checkinBtn');
-  const card = document.getElementById('commuteCard');
-  const title = document.getElementById('commuteTitle');
-  const sub = document.getElementById('commuteSubTitle');
-  if (alreadyDone) {
-    const roundKm = preset ? Number(preset.km||0) : 0;
-    card.className = 'commute-card commute-done';
-    title.textContent = '✅ 오늘 출퇴근 완료';
-    sub.textContent = today + ` · 왕복 ${roundKm}km 등록됨 (출근 + 퇴근 각 ${Math.round(roundKm/2*10)/10}km)`;
-    btn.textContent = '등록됨';
-    btn.className = 'btn-checkin done';
-  } else {
-    card.className = 'commute-card';
-    if (preset) {
-      const roundKm = Number(preset.km||0);
-      title.textContent = '🚗 오늘 출퇴근 등록';
-      sub.textContent = `${preset.from||'?'} ↔ ${preset.to||'?'} · 왕복 ${roundKm}km (${preset.car||''}) — 버튼 클릭 시 출근+퇴근 자동 2건 등록`;
-    } else {
-      title.textContent = '🚗 오늘 출퇴근 등록';
-      sub.textContent = '⚙ 출퇴근 설정에서 고정값을 먼저 설정해주세요';
-    }
-    btn.textContent = '✅ 출퇴근 등록';
-    btn.className = 'btn-checkin';
-  }
-}
-
-function todayStr() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
-}
-
-async function doCheckin() {
-  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
-  if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
-  const today = todayStr();
-  const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute');
-  if (already) { toast('오늘 출퇴근이 이미 등록됐습니다'); return; }
-
-  const roundKm = Number(preset.km || 0);
-  // 출퇴근 1건(왕복)으로 저장 — 2건 분리 시 한 건 누락 문제 방지
-  const r = { emp, date:today, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:roundKm, fuel:'', client:'', memo:'출퇴근' };
-
-  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-  if (res.ok) {
-    D = res.data;
-    const now = new Date();
-    yr = now.getFullYear(); mo = now.getMonth()+1;
-    updMonth(); render(); updateCheckinCard();
-    toast(`출퇴근 등록됨 ✓ 왕복 ${roundKm}km`);
-  }
-}
-
-// ── 다른 날 출퇴근 등록 ──
-function togglePastCheckin() {
-  const panel = document.getElementById('pastCheckinPanel');
-  const btn   = document.getElementById('pastToggleBtn');
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
-  btn.textContent = isOpen ? '📅 다른 날 등록 ▾' : '📅 다른 날 등록 ▴';
-  if (!isOpen) {
-    // 기본값: 어제
-    const y = new Date(); y.setDate(y.getDate()-1);
-    document.getElementById('pastDate').value = `${y.getFullYear()}-${pad(y.getMonth()+1)}-${pad(y.getDate())}`;
-    document.getElementById('pastCheckinMsg').textContent = '';
-  }
-}
-
-async function doPastCheckin() {
-  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
-  if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
-  const date = document.getElementById('pastDate').value;
-  if (!date) { toast('날짜를 선택해주세요','err'); return; }
-
-  const msgEl = document.getElementById('pastCheckinMsg');
-
-  // 이미 등록됐는지 확인
-  const already = D.records.some(r => r.emp===emp && r.date===date && r.type==='commute');
-  if (already) {
-    msgEl.textContent = `⚠️ ${date} 출퇴근이 이미 등록됐습니다`;
-    msgEl.style.color = '#f87171';
-    return;
-  }
-
-  const roundKm = Number(preset.km || 0);
-  const r = { emp, date, type:'commute', car:preset.car||'', from:preset.from||'', to:preset.to||'', km:roundKm, fuel:'', client:'', memo:'출퇴근' };
-
-  msgEl.textContent = '등록 중...'; msgEl.style.color = '#9ca3af';
-
-  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-  if (res.ok) {
-    D = res.data;
-    const [y,m] = date.split('-').map(Number);
-    yr = y; mo = m; updMonth(); render(); updateCheckinCard();
-    msgEl.textContent = `✅ ${date} 출퇴근 등록 완료 (왕복 ${roundKm}km)`;
-    msgEl.style.color = '#34d399';
-    toast(`${date} 출퇴근 등록됨 ✓`);
-  }
-}
-
-// ══════════════════════════════════════════
-// ── 차량 탭 ──
-// ══════════════════════════════════════════
-
-async function addVehicle() {
-  const plate = document.getElementById('vPlate').value.trim();
-  const model = document.getElementById('vModel').value.trim();
-  const year  = document.getElementById('vYear').value.trim();
-  if (!plate) { toast('번호판을 입력해주세요','err'); return; }
-  const res = await api('/api/vehicle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate,model,year})});
-  if (res.ok) {
-    D = res.data;
-    document.getElementById('vPlate').value = '';
-    document.getElementById('vModel').value = '';
-    document.getElementById('vYear').value  = '';
-    renderVehicleTab();
-    toast(`${plate} 등록됨 ✓`);
-  } else { toast(res.msg||'등록 실패','err'); }
-}
-
-async function deleteVehicle(plate) {
-  if (!confirm(`"${plate}" 차량을 삭제할까요?`)) return;
-  const res = await api(`/api/vehicle/${encodeURIComponent(plate)}`,{method:'DELETE'});
-  if (res.ok) { D = res.data; renderVehicleTab(); toast(`${plate} 삭제됨`); }
-}
-
-async function saveOdometer() {
-  const plate = document.getElementById('odomCar').value;
-  const start = Number(document.getElementById('odomStart').value);
-  const end   = Number(document.getElementById('odomEnd').value);
-  const month = `${yr}-${pad(mo)}`;
-  if (!plate) { toast('차량을 선택해주세요','err'); return; }
-  if (!start && !end) { toast('계기판 수치를 입력해주세요','err'); return; }
-  if (end && start && end < start) { toast('월말이 월초보다 작습니다','err'); return; }
-  const res = await api('/api/odometer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plate,month,start,end})});
-  if (res.ok) { D = res.data; renderVehicleTab(); toast('계기판 기록 저장됨 ✓'); }
-}
-
-async function deleteOdometer(id) {
-  const res = await api(`/api/odometer/${id}`,{method:'DELETE'});
-  if (res.ok) { D = res.data; renderVehicleTab(); }
-}
-
-function renderVehicleTab() {
-  const vehicles = D.vehicles || [];
-  const odometer = D.odometer || [];
-  const month    = `${yr}-${pad(mo)}`;
-
-  // ① 차량 목록
-  const vList = document.getElementById('vList');
-  if (!vehicles.length) {
-    vList.innerHTML = '<div style="color:#4b5563;font-size:12px;text-align:center;padding:12px">등록된 차량이 없습니다</div>';
-  } else {
-    vList.innerHTML = `<table><thead><tr>
-      <th>번호판</th><th>차종</th><th>연식</th><th></th>
-    </tr></thead><tbody>
-    ${vehicles.map(v=>`<tr>
-      <td style="font-weight:600;color:#60a5fa">${v.plate}</td>
-      <td>${v.model||'-'}</td>
-      <td>${v.year||'-'}</td>
-      <td><button class="btn-red" onclick="deleteVehicle('${v.plate}')">삭제</button></td>
-    </tr>`).join('')}
-    </tbody></table>`;
-  }
-
-  // ② 계기판 차량 선택 드롭다운 갱신
-  const odomCar = document.getElementById('odomCar');
-  const prev = odomCar.value;
-  odomCar.innerHTML = vehicles.map(v=>`<option value="${v.plate}">${v.plate}${v.model?' ('+v.model+')':''}</option>`).join('') || '<option value="">— 차량 없음 —</option>';
-  if (prev) odomCar.value = prev;
-  document.getElementById('odomMonth').textContent = `${yr}년 ${mo}월`;
-
-  // ③ 이번 달 계기판 기록 목록
-  const monthOdom = odometer.filter(o=>o.month===month);
-  const odomList  = document.getElementById('odomList');
-  if (!monthOdom.length) {
-    odomList.innerHTML = '<div style="color:#4b5563;font-size:12px;text-align:center;padding:8px">이번 달 계기판 기록 없음</div>';
-  } else {
-    // 저장된 값 자동 채우기
-    const sel = monthOdom.find(o=>o.plate===odomCar.value);
-    if (sel) { document.getElementById('odomStart').value=sel.start||''; document.getElementById('odomEnd').value=sel.end||''; }
-    odomList.innerHTML = `<table><thead><tr>
-      <th>차량</th><th>월초(km)</th><th>월말(km)</th><th>계기판 주행</th><th></th>
-    </tr></thead><tbody>
-    ${monthOdom.map(o=>{
-      const driven = o.end && o.start ? o.end - o.start : null;
-      return `<tr>
-        <td style="color:#60a5fa;font-weight:600">${o.plate}</td>
-        <td>${o.start ? num(o.start) : '-'}</td>
-        <td>${o.end ? num(o.end) : '-'}</td>
-        <td style="color:#34d399;font-weight:600">${driven!==null ? num(driven)+'km' : '-'}</td>
-        <td><button class="btn-red" onclick="deleteOdometer('${o.id}')">삭제</button></td>
-      </tr>`;
-    }).join('')}
-    </tbody></table>`;
-  }
-
-  // ④ 운행 분석
-  const analysis = document.getElementById('vAnalysis');
-  if (!vehicles.length) {
-    analysis.innerHTML = '<div class="empty">차량을 먼저 등록해주세요</div>';
-    return;
-  }
-  analysis.innerHTML = vehicles.map(v => {
-    const odo     = odometer.find(o=>o.plate===v.plate && o.month===month);
-    const recKm   = (D.records||[]).filter(r=>r.car===v.plate && r.date?.startsWith(month)).reduce((s,r)=>s+Number(r.km||0),0);
-    const recFuel = (D.records||[]).filter(r=>r.car===v.plate && r.date?.startsWith(month)).reduce((s,r)=>s+Number(r.fuel||0),0);
-    const odomKm  = odo && odo.end && odo.start ? odo.end - odo.start : null;
-    const diff    = odomKm !== null ? odomKm - recKm : null;
-    const effKm   = recFuel > 0 && recKm > 0 ? Math.round(recKm / (recFuel/1650) * 10) / 10 : null; // 가솔린 기준 L당 1650원 추정
-    const fuelL   = recFuel > 0 ? Math.round(recFuel/1650*10)/10 : null;
-
-    return `<div style="background:#111827;border:1px solid #374151;border-radius:10px;padding:16px;margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span style="font-size:15px;font-weight:700;color:#60a5fa">${v.plate}</span>
-        <span style="font-size:11px;color:#6b7280">${v.model||''} ${v.year||''}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">
-        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
-          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">기록 주행</div>
-          <div style="font-size:18px;font-weight:700;color:#60a5fa">${num(recKm)}<span style="font-size:11px;color:#9ca3af"> km</span></div>
-        </div>
-        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
-          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">계기판 주행</div>
-          <div style="font-size:18px;font-weight:700;color:#34d399">${odomKm!==null?num(odomKm):'—'}<span style="font-size:11px;color:#9ca3af">${odomKm!==null?' km':''}</span></div>
-        </div>
-        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
-          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">미기록 주행</div>
-          <div style="font-size:18px;font-weight:700;color:${diff!==null&&diff>0?'#f87171':'#9ca3af'}">${diff!==null?num(diff):'—'}<span style="font-size:11px;color:#9ca3af">${diff!==null?' km':''}</span></div>
-        </div>
-        <div style="background:#1f2937;border-radius:8px;padding:10px 12px">
-          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">주유금액</div>
-          <div style="font-size:18px;font-weight:700;color:#fbbf24">${recFuel?num(recFuel):'—'}<span style="font-size:11px;color:#9ca3af">${recFuel?' 원':''}</span></div>
-        </div>
-        ${fuelL ? `<div style="background:#1f2937;border-radius:8px;padding:10px 12px">
-          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">연비 추정</div>
-          <div style="font-size:18px;font-weight:700;color:#a78bfa">${effKm||'—'}<span style="font-size:11px;color:#9ca3af"> km/L</span></div>
-          <div style="font-size:10px;color:#6b7280;margin-top:2px">주유 약 ${fuelL}L 기준</div>
-        </div>` : ''}
-      </div>
-      ${diff===null?`<div style="font-size:11px;color:#6b7280;margin-top:10px">💡 계기판 기록을 입력하면 미기록 주행을 확인할 수 있어요</div>`:''}
-    </div>`;
-  }).join('');
-}
-
 // ── 토스트 ──
 function toast(msg, type) {
   const el = document.getElementById('toast');
@@ -1464,7 +1332,286 @@ function toast(msg, type) {
   el.style.background = type==='err' ? '#ef4444' : '#34d399';
   el.style.color = type==='err' ? '#fff' : '#111';
   el.classList.add('on');
-  setTimeout(()=>el.classList.remove('on'), 2000);
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.classList.remove('on'), 2500);
+}
+
+// ══════════════════════════════════════════
+// 🚗 자량관리 탭
+// ══════════════════════════════════════════
+function renderVehicleTab() {
+  document.getElementById('odoMonthLabel').textContent = `${yr}년 ${mo}월`;
+  renderVehicleList();
+  renderOdoSelect();
+  renderVehicleAnalysis();
+}
+
+// 등록된 차량 목록
+function renderVehicleList() {
+  const el = document.getElementById('vehicleList');
+  if (!D.vehicles || !D.vehicles.length) {
+    el.innerHTML = '<div style="text-align:center;color:#4b5563;font-size:13px;padding:12px">등록된 자량이 없습니다</div>';
+    return;
+  }
+  el.innerHTML = `<table><thead><tr>
+    <th>번호판</th><th>자종</th><th>연식</th><th></th>
+  </tr></thead><tbody>` +
+  D.vehicles.map(v => `<tr>
+    <td style="font-weight:600">${esc(v.plate)}</td>
+    <td>${esc(v.model||'-')}</td>
+    <td class="tm">${v.year||'-'}년</td>
+    <td><button class="btn-red" onclick="deleteVehicle('${esc(v.id)}')">삭제</button></td>
+  </tr>`).join('') + '</tbody></table>';
+}
+
+// 차량 등록
+async function addVehicle() {
+  const plate = document.getElementById('vPlate').value.trim();
+  const model = document.getElementById('vModel').value.trim();
+  const year  = document.getElementById('vYear').value.trim();
+  if (!plate) { toast('번호판을 입력해주세요','err'); return; }
+  const res = await api('/api/vehicle', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({plate, model, year})
+  });
+  if (res.ok) {
+    D = res.data;
+    document.getElementById('vPlate').value = '';
+    document.getElementById('vModel').value = '';
+    document.getElementById('vYear').value  = '';
+    renderVehicleTab();
+    toast('차량 등록됨 ✓');
+  } else {
+    toast(res.msg||'등록 실패','err');
+  }
+}
+
+// 차량 삭제
+async function deleteVehicle(id) {
+  if (!confirm('차량을 삭제할까요? 관련 계기판 기록도 함께 삭제됩니다.')) return;
+  const res = await api('/api/vehicle/'+id, {method:'DELETE'});
+  if (res.ok) { D = res.data; renderVehicleTab(); toast('차량 삭제됨'); }
+}
+
+// 계기판 선택 드롭다운
+function renderOdoSelect() {
+  const sel = document.getElementById('odoVehicle');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— 차량 없음 —</option>';
+  (D.vehicles||[]).forEach(v => {
+    const o = document.createElement('option');
+    o.value = v.id;
+    o.textContent = `${v.plate} (${v.model||''})`;
+    sel.appendChild(o);
+  });
+  if (prev && (D.vehicles||[]).find(v=>v.id===prev)) sel.value = prev;
+  loadOdoRecord();
+}
+
+// 해당 월 계기판 기록 불러오기
+function loadOdoRecord() {
+  const vid = document.getElementById('odoVehicle').value;
+  const rec = (D.odometerRecords||[]).find(o => o.vehicleId===vid && o.year==yr && o.month==mo);
+  document.getElementById('odoStart').value = rec ? rec.startKm : '';
+  document.getElementById('odoEnd').value   = rec ? rec.endKm   : '';
+  const msg = document.getElementById('odoRecord');
+  if (rec) {
+    const dist = (rec.endKm||0) - (rec.startKm||0);
+    msg.innerHTML = `<div style="background:#111827;border:1px solid #374151;border-radius:8px;padding:12px 16px;font-size:13px">
+      <span style="color:#9ca3af">${yr}년 ${mo}월 저장된 기록:</span>
+      <span style="color:#f3f4f6;margin-left:8px">월초 ${num(rec.startKm)}km → 월말 ${num(rec.endKm)}km</span>
+      <span style="color:#60a5fa;font-weight:700;margin-left:8px">이동거리: ${num(dist)}km</span>
+    </div>`;
+  } else {
+    msg.innerHTML = `<div style="text-align:center;color:#4b5563;font-size:12px;padding:8px">이번 달 계기판 기록 없음</div>`;
+  }
+  const savedMsg = document.getElementById('odoSavedMsg');
+  if (savedMsg) savedMsg.style.display = 'none';
+}
+
+// 계기판 저장
+async function saveOdometer() {
+  const vehicleId = document.getElementById('odoVehicle').value;
+  if (!vehicleId) { toast('차량을 선택해주세요','err'); return; }
+  const startKm = Number(document.getElementById('odoStart').value||0);
+  const endKm   = Number(document.getElementById('odoEnd').value||0);
+  if (endKm > 0 && endKm < startKm) { toast('월말 계기판이 월초보다 작습니다','err'); return; }
+  const res = await api('/api/odometer', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({vehicleId, year:yr, month:mo, startKm, endKm})
+  });
+  if (res.ok) {
+    D = res.data;
+    loadOdoRecord();
+    renderVehicleAnalysis();
+    toast('계기판 기록 저장됨 ✓');
+  } else {
+    toast(res.msg||'저장 실패','err');
+  }
+}
+
+// 이번 달 운행 분석
+function renderVehicleAnalysis() {
+  const el = document.getElementById('vehicleAnalysis');
+  if (!D.vehicles || !D.vehicles.length) {
+    el.innerHTML = '<div style="text-align:center;color:#4b5563;font-size:13px;padding:32px">자량을 먼저 등록해주세요</div>';
+    return;
+  }
+
+  // 레코드 기반 총 주행(업무일지 기록)
+  const monthRecs = D.records.filter(r => r.date && r.date.startsWith(`${yr}-${pad(mo)}`));
+  const totalRecKm = monthRecs.reduce((s,r) => s + Number(r.km||0), 0);
+  const bizRecs    = monthRecs.filter(r => r.type==='business');
+  const comRecs    = monthRecs.filter(r => r.type==='commute');
+
+  // 차량별 계기판 기반 이동거리
+  let vehicleRows = D.vehicles.map(v => {
+    const odo = (D.odometerRecords||[]).find(o => o.vehicleId===v.id && o.year==yr && o.month==mo);
+    const odoDist = odo ? Math.max(0, (odo.endKm||0) - (odo.startKm||0)) : null;
+    // 해당 차량 기록 km 합산
+    const vRecs = monthRecs.filter(r => r.car && r.car.replace(/\s/g,'') === v.plate.replace(/\s/g,''));
+    const vRecKm = vRecs.reduce((s,r)=>s+Number(r.km||0),0);
+    return `<div style="background:#111827;border:1px solid #374151;border-radius:10px;padding:14px 18px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-weight:700;font-size:14px">${esc(v.plate)}</span>
+        <span style="font-size:12px;color:#6b7280">${esc(v.model||'')} ${v.year||''}년</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div style="background:#1f2937;border-radius:7px;padding:10px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">계기판 이동거리</div>
+          <div style="font-size:18px;font-weight:700;color:#60a5fa">${odo ? num(odoDist)+'<span style="font-size:11px;color:#9ca3af">km</span>' : '<span style="font-size:12px;color:#4b5563">미입력</span>'}</div>
+        </div>
+        <div style="background:#1f2937;border-radius:7px;padding:10px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">업무일지 주행합계</div>
+          <div style="font-size:18px;font-weight:700;color:#34d399">${num(vRecKm)}<span style="font-size:11px;color:#9ca3af">km</span></div>
+        </div>
+        <div style="background:#1f2937;border-radius:7px;padding:10px">
+          <div style="font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">차량 기록건수</div>
+          <div style="font-size:18px;font-weight:700;color:#fb923c">${vRecs.length}<span style="font-size:11px;color:#9ca3af">건</span></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // 전체 합산 박스
+  const totalOdoDist = D.vehicles.reduce((s,v) => {
+    const odo = (D.odometerRecords||[]).find(o => o.vehicleId===v.id && o.year==yr && o.month==mo);
+    return s + (odo ? Math.max(0,(odo.endKm||0)-(odo.startKm||0)) : 0);
+  }, 0);
+
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1e3a5f,#1f2937);border:1px solid #2563eb;border-radius:10px;padding:16px 20px;margin:12px 0 16px">
+      <div style="font-size:11px;color:#93c5fd;margin-bottom:8px">📊 ${yr}년 ${mo}월 전체 합산</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+        <div><div style="font-size:9px;color:#6b7280;margin-bottom:3px">계기판 기준 총 이동</div><div style="font-size:20px;font-weight:700;color:#60a5fa">${num(totalOdoDist)}<span style="font-size:11px;color:#9ca3af">km</span></div></div>
+        <div><div style="font-size:9px;color:#6b7280;margin-bottom:3px">일지 기준 총 주행</div><div style="font-size:20px;font-weight:700;color:#34d399">${num(totalRecKm)}<span style="font-size:11px;color:#9ca3af">km</span></div></div>
+        <div><div style="font-size:9px;color:#6b7280;margin-bottom:3px">외근 횟수</div><div style="font-size:20px;font-weight:700;color:#fb923c">${bizRecs.length}<span style="font-size:11px;color:#9ca3af">회</span></div></div>
+        <div><div style="font-size:9px;color:#6b7280;margin-bottom:3px">출퇴근 횟수</div><div style="font-size:20px;font-weight:700;color:#a78bfa">${comRecs.length}<span style="font-size:11px;color:#9ca3af">회</span></div></div>
+      </div>
+    </div>
+    ${vehicleRows}
+    ${bizRecs.length ? `
+    <div style="margin-top:4px">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:8px;padding:0 2px">이번 달 외근 기록 (${bizRecs.length}건)</div>
+      <table><thead><tr>
+        <th>날짜</th><th>사원</th><th>차량</th><th>출발→도착</th><th>주행</th><th>방문처</th>
+      </tr></thead><tbody>
+      ${bizRecs.sort((a,b)=>a.date>b.date?1:-1).map(r=>`<tr>
+        <td class="tm">${esc(r.date?.replace(/-/g,'/'))}</td>
+        <td style="font-weight:500">${esc(r.emp)}</td>
+        <td class="tm">${esc(r.car||'-')}</td>
+        <td class="tc">${esc(r.from||'')}${r.to?' → '+esc(r.to):''}</td>
+        <td class="tm">${r.km?num(r.km)+'km':'-'}</td>
+        <td class="tc">${esc(r.client||'-')}</td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>` : ''}
+  `;
+}
+
+// ══════════════════════════════════════════
+// 📅 외근 추가 모달 (다른날 등록)
+// ══════════════════════════════════════════
+function openBizModal() {
+  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
+  // 날짜 기본값 오늘
+  document.getElementById('bizDate').value     = todayStr();
+  document.getElementById('bizCar').value      = preset?.car||'';
+  document.getElementById('bizFrom').value     = '';
+  document.getElementById('bizTo').value       = '';
+  document.getElementById('bizKm').value       = '';
+  document.getElementById('bizClient').value   = '';
+  document.getElementById('bizCheckin').value  = '';
+  document.getElementById('bizCheckout').value = '';
+  document.getElementById('bizMemo').value     = '';
+  document.getElementById('bizMod').classList.add('on');
+}
+function closeBizModal() { document.getElementById('bizMod').classList.remove('on'); }
+
+async function saveBizRecord() {
+  if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
+  const date = document.getElementById('bizDate').value;
+  if (!date) { toast('날짜를 입력하세요','err'); return; }
+  const km   = Number(document.getElementById('bizKm').value||0);
+  if (km < 0) { toast('주행거리는 0 이상이어야 합니다','err'); return; }
+  const r = {
+    emp, date, type: 'business',
+    car:           document.getElementById('bizCar').value.trim(),
+    from:          document.getElementById('bizFrom').value.trim(),
+    to:            document.getElementById('bizTo').value.trim(),
+    km,
+    fuel:          0,
+    client:        document.getElementById('bizClient').value.trim(),
+    memo:          document.getElementById('bizMemo').value.trim(),
+    checkin_time:  document.getElementById('bizCheckin').value,
+    checkout_time: document.getElementById('bizCheckout').value,
+  };
+  const res = await api('/api/record', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
+  if (res.ok) {
+    D = res.data;
+    closeBizModal();
+    // 해당 날짜 달로 이동
+    const [y,m] = date.split('-');
+    yr = Number(y); mo = Number(m);
+    updMonth();
+    if (curTab === '자량관리') renderVehicleTab(); else render();
+    toast('외근 기록 저장됨 ✓');
+  } else {
+    toast(res.msg||'저장 실패','err');
+  }
+}
+
+// ══════════════════════════════════════════
+// ✏ KM 수정 모달
+// ══════════════════════════════════════════
+function openKmModal(id, date, km) {
+  document.getElementById('kmModId').value    = id;
+  document.getElementById('kmModVal').value   = km;
+  document.getElementById('kmModDesc').textContent = `날짜: ${date.replace(/-/g,'/')} — 현재 ${km}km`;
+  document.getElementById('kmMod').classList.add('on');
+  setTimeout(()=>document.getElementById('kmModVal').select(), 100);
+}
+function closeKmModal() { document.getElementById('kmMod').classList.remove('on'); }
+
+async function saveKmEdit() {
+  const id  = document.getElementById('kmModId').value;
+  const km  = Number(document.getElementById('kmModVal').value||0);
+  if (km < 0) { toast('주행거리는 0 이상이어야 합니다','err'); return; }
+  const res = await api('/api/record/'+id, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({km})
+  });
+  if (res.ok) {
+    D = res.data;
+    closeKmModal();
+    if (curTab === '자량관리') renderVehicleTab(); else render();
+    toast(`주행거리 ${num(km)}km 으로 수정됨 ✓`);
+  } else {
+    toast(res.msg||'수정 실패','err');
+  }
 }
 
 init();
