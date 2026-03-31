@@ -1,7 +1,7 @@
 {
   "name": "vehicle-log",
-  "version": "1.0.0",
-  "description": "더 맛있는 하루 차량업무일지",
+  "version": "2.0.0",
+  "description": "차량업무일지 / 출퇴근 기록기",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
