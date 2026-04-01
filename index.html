@@ -678,7 +678,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
 
     <div class="fg">
       <label>기록 유형</label>
-      <select class="fs" id="afType" onchange="updateAutoFillPreview()">
+      <select class="fs" id="afType" onchange="updateBizSec();updateAutoFillPreview()">
         <option value="commute">출퇴근만 (출근 + 퇴근)</option>
         <option value="business">외근만</option>
         <option value="both">출퇴근 + 외근</option>
@@ -702,6 +702,30 @@ tr:hover td{background:rgba(96,165,250,.03)}
             <span style="color:#6b7280;font-size:11px">~</span>
             <input type="time" class="fi" id="afOutTo" value="18:30" style="flex:1">
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 외근 설정 (외근 포함 시 표시) -->
+    <div id="afBizSec" style="display:none;margin-top:12px;padding:12px;background:#111827;border-radius:8px;border:1px solid #374151">
+      <div style="font-size:11px;color:#fb923c;font-weight:600;margin-bottom:10px">🚗 외근 설정</div>
+      <div class="fg" style="margin-top:0">
+        <label>외근 도착지 목록 <span style="color:#6b7280;font-weight:400">(쉼표로 구분 — 랜덤 선택됨)</span></label>
+        <textarea class="ft" id="afBizDests" rows="2" placeholder="예: 강남구청, 서초구청, 송파구청, 마포구청, 여의도 현장"></textarea>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <div class="fg" style="margin-top:0">
+          <label>외근 주행거리 범위 (랜덤)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" class="fi" id="afBizKmMin" value="5" min="0" style="flex:1">
+            <span style="color:#6b7280;font-size:11px">~</span>
+            <input type="number" class="fi" id="afBizKmMax" value="40" min="0" style="flex:1">
+            <span style="color:#6b7280;font-size:11px">km</span>
+          </div>
+        </div>
+        <div class="fg" style="margin-top:0">
+          <label>방문처 (선택)</label>
+          <input class="fi" id="afBizClient" placeholder="예: 고객사, 현장 등">
         </div>
       </div>
     </div>
@@ -2107,7 +2131,13 @@ document.addEventListener('click', function(e) {
 function openAutoFill() {
   if (!emp) { toast('사원을 먼저 선택하세요', 'err'); return; }
   document.getElementById('autoFillMod').classList.add('on');
+  updateBizSec();
   updateAutoFillPreview();
+}
+function updateBizSec() {
+  const t = document.getElementById('afType')?.value||'commute';
+  const sec = document.getElementById('afBizSec');
+  if (sec) sec.style.display = (t==='business'||t==='both') ? '' : 'none';
 }
 function closeAutoFill() {
   document.getElementById('autoFillMod').classList.remove('on');
@@ -2203,9 +2233,17 @@ async function runAutoFill() {
           id:makeId(), createdAt:new Date().toISOString() });
       }
       if ((afTypeVal==='business'||afTypeVal==='both') && !hasBiz) {
+        // 외근 — 랜덤 도착지 & 랜덤 km
+        const bizDests = (document.getElementById('afBizDests')?.value||'')
+          .split(',').map(s=>s.trim()).filter(Boolean);
+        const randDest  = bizDests.length ? bizDests[Math.floor(Math.random()*bizDests.length)] : '';
+        const bizKmMin  = Number(document.getElementById('afBizKmMin')?.value||5);
+        const bizKmMax  = Number(document.getElementById('afBizKmMax')?.value||40);
+        const randKm    = bizKmMin + Math.floor(Math.random()*(Math.max(bizKmMax,bizKmMin)-bizKmMin+1));
+        const bizClient = (document.getElementById('afBizClient')?.value||'').trim();
         newRecords.push({ emp:name, date, type:'business', direction:'',
-          car:p.car||'', from:p.to||p.from||'', to:'', km:0, fuel:0,
-          client:'', memo:'외근',
+          car:p.car||'', from:p.to||p.from||'', to:randDest, km:randKm, fuel:0,
+          client:bizClient, memo:'외근',
           checkin_time:randTime(inFrom,inTo), checkout_time:randTime(outFrom,outTo),
           id:makeId(), createdAt:new Date().toISOString() });
       }
