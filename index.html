@@ -123,7 +123,10 @@ tr:hover td{background:rgba(96,165,250,.03)}
 /* MODAL */
 .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
 .ov.on{display:flex}
-.modal{background:#1f2937;border:1px solid #374151;border-radius:14px;padding:24px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal{background:#1f2937;border:1px solid #374151;border-radius:14px;padding:24px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto;overflow-x:visible}
+/* 자동완성 드롭다운이 있는 모달 — overflow 클리핑 방지 */
+#preMod .modal,#dayMod .modal{overflow-y:visible;max-height:none}
+#preMod .modal .ac-list,#dayMod .modal .ac-list{position:absolute;z-index:500}
 .modal h3{font-size:14px;font-weight:700;margin-bottom:4px}
 .modal p{font-size:12px;color:#9ca3af;margin-bottom:16px}
 .ma{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
@@ -194,6 +197,16 @@ tr:hover td{background:rgba(96,165,250,.03)}
 /* 출근/퇴근 방향 배지 */
 .bd-ci{background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.3)}
 .bd-co{background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.3)}
+/* 자동완성 내 장소 */
+.ac-preset{background:rgba(37,99,235,.07);border-left:2px solid #2563eb}
+.ac-preset:hover,.ac-preset.ac-sel{background:rgba(37,99,235,.15)}
+.ac-badge{display:inline-block;background:#1e3a5f;color:#60a5fa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.ac-sep{padding:4px 12px;font-size:10px;color:#4b5563;background:#111827;font-weight:600;letter-spacing:.5px;border-bottom:1px solid #374151}
+/* 주소 입력행 */
+.addr-row{display:flex;gap:6px;align-items:flex-start}
+.addr-row .ac-wrap{flex:1;min-width:0}
+.addr-btn{background:#374151;border:1px solid #4b5563;color:#9ca3af;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;white-space:nowrap;transition:.15s;flex-shrink:0;font-family:inherit}
+.addr-btn:hover{border-color:#03C75A;color:#03C75A}
 /* 월 선택 피커 */
 .mp-wrap{position:relative;display:inline-flex;align-items:center}
 .month-picker{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#1f2937;border:1px solid #374151;border-radius:10px;padding:14px;z-index:300;box-shadow:0 8px 32px rgba(0,0,0,.6);min-width:230px}
@@ -326,31 +339,31 @@ tr:hover td{background:rgba(96,165,250,.03)}
           <div class="fg">
             <label>출발지</label>
             <div class="ac-wrap" style="display:flex;gap:4px">
-              <input class="fi" id="fFrom" placeholder="출발지 입력" style="flex:1"
-                oninput="acSearch(this,'acFrom');updateNaverLink()" onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')">
-              <button class="btn-addr" onclick="openAddrSearch('fFrom','from')" title="카카오 주소검색">📍</button>
+              <input class="fi" id="fFrom" placeholder="장소명 또는 주소 입력" style="flex:1"
+                oninput="acSearch(this,'acFrom');updateNaverLink()" onfocus="acFocus(this,'acFrom')" onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')">
+              <button class="btn-addr" onclick="searchAddr('fFrom')" title="카카오 주소검색">📍</button>
               <div class="ac-list" id="acFrom"></div>
             </div>
           </div>
           <div class="fg">
             <label>도착지</label>
             <div class="ac-wrap" style="display:flex;gap:4px">
-              <input class="fi" id="fTo" placeholder="도착지 입력" style="flex:1"
-                oninput="acSearch(this,'acTo');updateNaverLink()" onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')">
-              <button class="btn-addr" onclick="openAddrSearch('fTo','to')" title="카카오 주소검색">📍</button>
+              <input class="fi" id="fTo" placeholder="장소명 또는 주소 입력" style="flex:1"
+                oninput="acSearch(this,'acTo');updateNaverLink()" onfocus="acFocus(this,'acTo')" onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')">
+              <button class="btn-addr" onclick="searchAddr('fTo')" title="카카오 주소검색">📍</button>
               <div class="ac-list" id="acTo"></div>
             </div>
           </div>
         </div>
-        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <a id="naverLink" href="#" target="_blank" rel="noopener"
-            style="display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none">
-            🗺 네이버 지도 확인 →
-          </a>
-          <button id="calcDistBtn" class="btn-calc" onclick="calcDistance()" style="display:none">
-            📏 거리 자동계산
+        <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button type="button" id="calcBtn" class="btn btn-gray btn-sm" onclick="autoCalcKm()" style="display:flex;align-items:center;gap:5px">
+            🚗 거리 자동계산
           </button>
-          <span id="calcDistNote" style="display:none;font-size:11px;color:#6b7280">📍 버튼으로 주소 검색 시 자동계산 가능</span>
+          <span id="calcHint" style="font-size:11px;color:#6b7280">출퇴근은 왕복·외근은 편도로 자동 계산됩니다</span>
+          <a id="naverLink" href="#" target="_blank" rel="noopener"
+            style="display:none;align-items:center;gap:5px;background:#03C75A;color:#fff;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;margin-left:auto">
+            🗺 네이버지도 확인 →
+          </a>
         </div>
         <div class="row3">
           <div class="fg">
@@ -471,14 +484,14 @@ tr:hover td{background:rgba(96,165,250,.03)}
 
 <!-- 사원 관리 모달 -->
 <div class="ov" id="empMod">
-  <div class="modal">
+  <div class="modal" style="width:480px">
     <h3>👤 사원 관리</h3>
     <p>사원을 추가하거나 삭제합니다</p>
 
-    <div style="display:flex;gap:8px;margin-top:0">
-      <input class="fi" id="newEmp" placeholder="사원 이름" maxlength="20"
+    <div style="display:flex;gap:8px;margin-top:0;align-items:stretch">
+      <input class="fi" id="newEmp" placeholder="사원 이름" maxlength="20" style="flex:1"
         onkeydown="if(event.key==='Enter')addEmp()">
-      <button class="btn btn-blue btn-sm" id="addBtn" onclick="addEmp()">+ 추가</button>
+      <button class="btn btn-blue" id="addBtn" onclick="addEmp()" style="white-space:nowrap;padding:0 18px">+ 추가</button>
     </div>
     <div class="msg" id="empMsg"></div>
     <div class="emp-list" id="empList"></div>
@@ -502,24 +515,41 @@ tr:hover td{background:rgba(96,165,250,.03)}
 <!-- 출퇴근 설정 모달 -->
 <div class="ov" id="preMod">
   <div class="modal">
-    <h3>⚙ 출퇴근 고정 설정</h3>
-    <p>출근 체크 버튼을 누를 때 자동으로 채워질 값을 설정합니다</p>
-    <div class="row2">
-      <div class="fg ac-wrap" style="margin-top:0">
-        <label>출발지 (집)</label>
-        <input class="fi" id="pFrom" placeholder="예) 경기 수원시"
-          oninput="acSearch(this,'acPFrom')" onblur="hideAc('acPFrom')" onkeydown="acKey(event,'acPFrom','pFrom')">
-        <div class="ac-list" id="acPFrom"></div>
-      </div>
-      <div class="fg ac-wrap" style="margin-top:0">
-        <label>도착지 (회사)</label>
-        <input class="fi" id="pTo" placeholder="예) 서울 강남구"
-          oninput="acSearch(this,'acPTo')" onblur="hideAc('acPTo')" onkeydown="acKey(event,'acPTo','pTo')">
-        <div class="ac-list" id="acPTo"></div>
+    <h3>⚙ 출퇴근 고정값 설정</h3>
+    <p>저장하면 출퇴근 선택 시 자동으로 채워집니다. 📍 검색으로 정확한 주소를 찾을 수 있습니다.</p>
+    <div class="fg" style="margin-top:0">
+      <label>출발지 (집)</label>
+      <div class="addr-row">
+        <div class="ac-wrap" style="flex:1">
+          <input class="fi" id="pFrom" placeholder="예) 경기 용인시 처인구" autocomplete="off"
+            oninput="acSearch(this,'acPFrom')" onblur="hideAc('acPFrom')" onkeydown="acKey(event,'acPFrom','pFrom')">
+          <div class="ac-list" id="acPFrom"></div>
+        </div>
+        <button type="button" class="addr-btn" onclick="searchAddr('pFrom')">📍 검색</button>
       </div>
     </div>
-    <div class="row2">
-      <div class="fg" style="margin-top:0"><label>편도 거리(km)</label><input type="number" class="fi" id="pKm" placeholder="45" min="0"></div>
+    <div class="fg" style="margin-top:10px">
+      <label>도착지 (회사)</label>
+      <div class="addr-row">
+        <div class="ac-wrap" style="flex:1">
+          <input class="fi" id="pTo" placeholder="예) 서울 강남구" autocomplete="off"
+            oninput="acSearch(this,'acPTo')" onblur="hideAc('acPTo')" onkeydown="acKey(event,'acPTo','pTo')">
+          <div class="ac-list" id="acPTo"></div>
+        </div>
+        <button type="button" class="addr-btn" onclick="searchAddr('pTo')">📍 검색</button>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <button type="button" id="preCalcBtn" class="btn btn-gray btn-sm" onclick="autoCalcPresetKm()" style="display:flex;align-items:center;gap:5px">
+        🚗 편도 거리 자동계산
+      </button>
+      <span id="preCalcHint" style="font-size:11px;color:#6b7280;display:block;margin-top:4px">집↔회사 주소를 입력한 뒤 클릭하면 편도 거리가 자동 입력됩니다</span>
+    </div>
+    <div class="row2" style="margin-top:10px">
+      <div class="fg" style="margin-top:0">
+        <label>편도 거리 (km) <span style="font-size:10px;color:#6b7280">· 출근 또는 퇴근 1건 기준</span></label>
+        <input type="number" class="fi" id="pKm" placeholder="예) 45" min="0">
+      </div>
       <div class="fg" style="margin-top:0"><label>차량번호</label><input class="fi" id="pCar" placeholder="12가 3456"></div>
     </div>
     <div class="ma">
@@ -564,7 +594,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
         <div class="ac-wrap" style="display:flex;gap:4px">
           <input class="fi" id="dayFrom" placeholder="출발지" style="flex:1"
             oninput="updateDayNaverLink()" onblur="hideAc('acDayFrom')" onkeydown="acKey(event,'acDayFrom','dayFrom')">
-          <button class="btn-addr" onclick="openAddrSearch('dayFrom','dayFrom')" title="주소검색">📍</button>
+          <button class="btn-addr" onclick="searchAddr('dayFrom')" title="주소검색">📍</button>
           <div class="ac-list" id="acDayFrom"></div>
         </div>
       </div>
@@ -573,19 +603,20 @@ tr:hover td{background:rgba(96,165,250,.03)}
         <div class="ac-wrap" style="display:flex;gap:4px">
           <input class="fi" id="dayTo" placeholder="도착지" style="flex:1"
             oninput="updateDayNaverLink()" onblur="hideAc('acDayTo')" onkeydown="acKey(event,'acDayTo','dayTo')">
-          <button class="btn-addr" onclick="openAddrSearch('dayTo','dayTo')" title="주소검색">📍</button>
+          <button class="btn-addr" onclick="searchAddr('dayTo')" title="주소검색">📍</button>
           <div class="ac-list" id="acDayTo"></div>
         </div>
       </div>
     </div>
-    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <a id="dayNaverLink" href="#" target="_blank" rel="noopener"
-        style="display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;padding:6px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none">
-        🗺 네이버 지도 →
-      </a>
-      <button id="dayCalcBtn" class="btn-calc" onclick="calcDistanceModal()" style="display:none;font-size:11px;padding:6px 12px">
-        📏 거리 자동계산
+    <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button type="button" class="btn btn-gray btn-sm" onclick="autoCalcDayKm()" style="display:flex;align-items:center;gap:5px">
+        🚗 거리 자동계산
       </button>
+      <span id="dayCalcHint" style="font-size:11px;color:#6b7280">출퇴근은 왕복·외근은 편도로 자동 계산됩니다</span>
+      <a id="dayNaverLink" href="#" target="_blank" rel="noopener"
+        style="display:none;align-items:center;gap:5px;background:#03C75A;color:#fff;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none;margin-left:auto">
+        🗺 네이버지도 →
+      </a>
     </div>
     <div class="fg" id="dayClientWrap" style="display:none">
       <label>방문처</label>
@@ -626,10 +657,6 @@ tr:hover td{background:rgba(96,165,250,.03)}
 let D = {employees:[], records:[], presets:{}, vehicles:[], odometerRecords:[]};
 let emp = '', yr = new Date().getFullYear(), mo = new Date().getMonth()+1;
 let preset = null, curTab = '입력';
-// 주소 좌표 (메인 폼)
-let fromCoords = null, toCoords = null;
-// 주소 좌표 (다른날 등록 모달)
-let dayFromCoords = null, dayToCoords = null;
 // 월 피커 임시 연도
 let _mpYear = new Date().getFullYear();
 
@@ -807,7 +834,7 @@ function renderSum() {
   document.getElementById('sGrid').innerHTML = D.employees.map(e => {
     const recs = D.records.filter(r => r.emp===e && r.date?.startsWith(`${yr}-${pad(mo)}`));
     const km   = recs.reduce((s,r)=>s+Number(r.km||0),0);
-    const com  = recs.filter(r=>r.type==='commute').length;
+    const com  = new Set(recs.filter(r=>r.type==='commute').map(r=>r.date)).size; // 날짜 기준 1회 집계
     const biz  = recs.filter(r=>r.type==='business').length;
     const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
     return `<div class="ec">
@@ -841,9 +868,10 @@ function typeChange() {
 function clearForm() {
   ['fFrom','fTo','fKm','fFuel','fClient','fMemo','fCar'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fType').value = 'commute';
-  fromCoords = null; toCoords = null;
   setToday();
   updateNaverLink();
+  const hint = document.getElementById('calcHint');
+  if (hint) hint.textContent = '출퇴근은 왕복·외근은 편도로 자동 계산됩니다';
 }
 function saveRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
@@ -1210,6 +1238,164 @@ function doRestore(input) {
   input.value='';
 }
 
+// ══════════════════════════════════════════
+// 📍 주소 검색 + 거리 자동계산
+// ══════════════════════════════════════════
+
+// 주소를 점진적으로 축소해 Nominatim 검색 fallback 목록 생성
+function addrFallbacks(addr) {
+  const add = (list, s) => { if (s && s.trim()) { list.push(s.trim()); list.push(s.trim() + ' 대한민국'); } };
+  const list = [addr, addr + ' 대한민국'];
+  const parts = addr.trim().split(/\s+/);
+  if (/^\d/.test(parts[parts.length - 1])) add(list, parts.slice(0, -1).join(' '));
+  const bunIdx = parts.findIndex(p => p.includes('번길'));
+  if (bunIdx > 0) add(list, parts.slice(0, bunIdx).join(' '));
+  const streetIdx = parts.findIndex(p => /[로길]$/.test(p));
+  if (streetIdx > 0) add(list, parts.slice(0, streetIdx).join(' '));
+  const guIdx = parts.findIndex(p => /[구군]$/.test(p));
+  if (guIdx >= 0) add(list, parts.slice(0, guIdx + 1).join(' '));
+  const siIdx = parts.findIndex(p => /시$/.test(p));
+  if (siIdx >= 0) add(list, parts.slice(0, siIdx + 1).join(' '));
+  return [...new Set(list)];
+}
+
+// Nominatim 지오코딩 (무료 OpenStreetMap, fallback 포함)
+async function geocodeAddr(addr) {
+  const queries = addrFallbacks(addr);
+  for (const q of queries) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=3&countrycodes=kr&accept-language=ko`;
+      const r = await fetch(url, { headers: { 'User-Agent': 'vehiclelog-app/1.0' }, signal: ctrl.signal });
+      clearTimeout(tid);
+      const d = await r.json();
+      if (d[0]) {
+        const approx = !(q === addr || q === addr + ' 대한민국');
+        return { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon), name: d[0].display_name, approx, matchedQuery: q };
+      }
+    } catch(e) { /* 다음 단계로 */ }
+  }
+  return null;
+}
+
+// 하버사인: 두 좌표 간 직선거리(km)
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+  const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+// 직선거리 × 1.3 (한국 도로 우회 보정)
+function getDrivingKm(fromCoord, toCoord) {
+  return Math.round(haversineKm(fromCoord, toCoord) * 1.3 * 10) / 10;
+}
+
+// 기록 추가 폼: 거리 자동계산 (출퇴근=왕복×2, 외근=편도)
+async function autoCalcKm() {
+  const from = document.getElementById('fFrom').value.trim();
+  const to   = document.getElementById('fTo').value.trim();
+  if (!from || !to) { toast('출발지와 도착지를 먼저 입력하세요', 'err'); return; }
+  const btn  = document.getElementById('calcBtn');
+  const hint = document.getElementById('calcHint');
+  btn.textContent = '⏳ 계산 중...'; btn.disabled = true;
+  hint.textContent = '주소 검색 중...';
+  try {
+    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
+    if (!fc) { hint.textContent = `❌ "${from}" 주소를 찾지 못했습니다`; toast('출발지 주소 인식 실패', 'err'); return; }
+    if (!tc) { hint.textContent = `❌ "${to}" 주소를 찾지 못했습니다`; toast('도착지 주소 인식 실패', 'err'); return; }
+    const oneway = getDrivingKm(fc, tc);
+    const type = document.getElementById('fType').value;
+    const isCommute = type === 'commute';
+    const km = isCommute ? Math.round(oneway * 2 * 10) / 10 : oneway;
+    document.getElementById('fKm').value = km;
+    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
+    const msg = isCommute
+      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)${approxNote}`
+      : `✅ 편도 ${km}km 자동입력${approxNote}`;
+    hint.textContent = msg;
+    toast(approxNote ? `${km}km 입력됨${approxNote} — 네이버지도로 확인 권장` : msg);
+  } catch(e) {
+    hint.textContent = '❌ 계산 실패 — 네이버지도로 직접 확인하세요';
+    toast('거리 계산 중 오류 발생', 'err');
+  } finally {
+    btn.textContent = '🚗 거리 자동계산'; btn.disabled = false;
+  }
+}
+
+// 출퇴근 설정 모달: 편도 거리 자동계산
+async function autoCalcPresetKm() {
+  const from = document.getElementById('pFrom').value.trim();
+  const to   = document.getElementById('pTo').value.trim();
+  if (!from || !to) { toast('집·회사 주소를 먼저 입력하세요', 'err'); return; }
+  const btn  = document.getElementById('preCalcBtn');
+  const hint = document.getElementById('preCalcHint');
+  btn.textContent = '⏳ 계산 중...'; btn.disabled = true;
+  hint.textContent = '주소 검색 중...';
+  try {
+    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
+    if (!fc) { toast(`"${from}" 주소를 찾지 못했습니다`, 'err'); hint.textContent = '출발지 주소 인식 실패'; return; }
+    if (!tc) { toast(`"${to}" 주소를 찾지 못했습니다`, 'err'); hint.textContent = '도착지 주소 인식 실패'; return; }
+    const oneway = getDrivingKm(fc, tc);
+    document.getElementById('pKm').value = oneway;
+    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
+    const msg = `✅ 편도 ${oneway}km 자동입력 (왕복 ${Math.round(oneway*2*10)/10}km)${approxNote}`;
+    hint.textContent = msg;
+    toast(msg);
+  } catch(e) {
+    hint.textContent = '계산 실패 — 직접 입력해주세요';
+    toast('거리 계산 중 오류 발생', 'err');
+  } finally {
+    btn.textContent = '🚗 편도 거리 자동계산'; btn.disabled = false;
+  }
+}
+
+// 다른날 등록 모달: 거리 자동계산 (출퇴근=왕복, 외근=편도)
+async function autoCalcDayKm() {
+  const from = document.getElementById('dayFrom').value.trim();
+  const to   = document.getElementById('dayTo').value.trim();
+  if (!from || !to) { toast('출발지와 도착지를 먼저 입력하세요', 'err'); return; }
+  const hint = document.getElementById('dayCalcHint');
+  hint.textContent = '주소 검색 중...';
+  try {
+    const [fc, tc] = await Promise.all([geocodeAddr(from), geocodeAddr(to)]);
+    if (!fc) { hint.textContent = `❌ "${from}" 주소를 찾지 못했습니다`; toast('출발지 주소 인식 실패', 'err'); return; }
+    if (!tc) { hint.textContent = `❌ "${to}" 주소를 찾지 못했습니다`; toast('도착지 주소 인식 실패', 'err'); return; }
+    const oneway = getDrivingKm(fc, tc);
+    const typeVal = document.getElementById('dayType').value;
+    const isCommute = typeVal === 'commute_in' || typeVal === 'commute_out';
+    const km = isCommute ? Math.round(oneway * 2 * 10) / 10 : oneway;
+    document.getElementById('dayKm').value = km;
+    const approxNote = (fc.approx || tc.approx) ? ' (근사치)' : '';
+    const msg = isCommute
+      ? `✅ 왕복 ${km}km 자동입력 (편도 ${oneway}km)${approxNote}`
+      : `✅ 편도 ${km}km 자동입력${approxNote}`;
+    hint.textContent = msg;
+    toast(approxNote ? `${km}km 입력됨${approxNote}` : msg);
+  } catch(e) {
+    hint.textContent = '❌ 계산 실패 — 직접 입력해주세요';
+    toast('거리 계산 중 오류 발생', 'err');
+  }
+}
+
+// 카카오 주소 검색 팝업 (텍스트 채우기만, 좌표 불필요)
+function searchAddr(targetId) {
+  if (typeof daum === 'undefined' || !daum.Postcode) {
+    toast('주소 검색 스크립트를 불러오는 중입니다. 잠시 후 다시 시도해주세요.', 'err');
+    return;
+  }
+  new daum.Postcode({
+    oncomplete: function(data) {
+      const addr = data.roadAddress || data.jibunAddress || data.address;
+      const el = document.getElementById(targetId);
+      if (el) el.value = addr;
+      updateNaverLink();
+      if (targetId === 'dayFrom' || targetId === 'dayTo') updateDayNaverLink();
+    }
+  }).open();
+}
+
 // ── 주소 자동완성 ──
 const REGIONS = [
   '서울 강남구','서울 강북구','서울 강동구','서울 강서구','서울 관악구','서울 광진구',
@@ -1242,44 +1428,72 @@ const REGIONS = [
 ];
 
 let acTimer = null;
+
+// 포커스 시 내 장소(집/회사) 자동 표시
+function acFocus(input, listId) {
+  if (!preset || (!preset.from && !preset.to)) return;
+  acSearch(input, listId);
+}
+
+// 자동완성: 내 장소(집/회사) + 행정구역
 function acSearch(input, listId) {
   clearTimeout(acTimer);
   const q = input.value.trim();
   const list = document.getElementById(listId);
-  if (q.length < 1) { list.style.display='none'; return; }
   acTimer = setTimeout(() => {
-    const results = REGIONS.filter(r => r.replace(/ /g,'').includes(q.replace(/ /g,''))).slice(0,8);
-    if (!results.length) { list.style.display='none'; return; }
-    // [버그수정] XSS 방지: textContent 사용 또는 안전한 하이라이트
-    list.innerHTML = '';
-    results.forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'ac-item';
-      const nameEl = document.createElement('span');
-      nameEl.className = 'ac-name';
-      // 하이라이트: 안전하게 처리
-      const qi = r.toLowerCase().indexOf(q.toLowerCase());
-      if (qi >= 0) {
-        nameEl.appendChild(document.createTextNode(r.slice(0, qi)));
-        const hl = document.createElement('span');
-        hl.className = 'ac-hl';
-        hl.textContent = r.slice(qi, qi + q.length);
-        nameEl.appendChild(hl);
-        nameEl.appendChild(document.createTextNode(r.slice(qi + q.length)));
-      } else {
-        nameEl.textContent = r;
+    const items = [];
+
+    // 1) 내 장소 (preset.from=집, preset.to=회사) 우선 표시
+    if (preset) {
+      const myPlaces = [];
+      if (preset.from) myPlaces.push({ badge: '🏠 집',  val: preset.from });
+      if (preset.to)   myPlaces.push({ badge: '🏢 회사', val: preset.to  });
+      const matched = myPlaces.filter(p =>
+        !q || p.val.replace(/ /g,'').includes(q.replace(/ /g,''))
+      );
+      if (matched.length) {
+        items.push('<div class="ac-sep">내 장소</div>');
+        matched.forEach(p => {
+          const safeVal = p.val.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          items.push(
+            `<div class="ac-item ac-preset" onmousedown="acPick('${input.id}','${listId}','${safeVal}')">` +
+            `<span class="ac-badge">${p.badge}</span>` +
+            `<span class="ac-name">${esc(p.val)}</span>` +
+            `</div>`
+          );
+        });
       }
-      item.appendChild(nameEl);
-      item.addEventListener('mousedown', () => acPick(input.id, listId, r));
-      list.appendChild(item);
-    });
+    }
+
+    // 2) 행정구역 검색 (글자 입력 있을 때만)
+    if (q.length >= 1) {
+      const results = REGIONS.filter(r =>
+        r.replace(/ /g,'').includes(q.replace(/ /g,''))
+      ).slice(0, 6);
+      if (results.length) {
+        if (items.length) items.push('<div class="ac-sep">지역</div>');
+        results.forEach(r => {
+          const safeR = r.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          const hl = r.replace(new RegExp(q.replace(/ /g,''), 'gi'), m => `<b style="color:#60a5fa">${m}</b>`);
+          items.push(
+            `<div class="ac-item" onmousedown="acPick('${input.id}','${listId}','${safeR}')">` +
+            `<span class="ac-name">${hl}</span>` +
+            `</div>`
+          );
+        });
+      }
+    }
+
+    if (!items.length) { list.style.display='none'; return; }
+    list.innerHTML = items.join('');
     list.style.display = 'block';
-  }, 120);
+  }, 80);
 }
 function acPick(inputId, listId, val) {
   document.getElementById(inputId).value = val;
   document.getElementById(listId).style.display = 'none';
   updateNaverLink();
+  if (inputId === 'dayFrom' || inputId === 'dayTo') updateDayNaverLink();
 }
 function hideAc(listId) {
   setTimeout(()=>{ const el=document.getElementById(listId); if(el) el.style.display='none'; }, 180);
@@ -1297,39 +1511,30 @@ function acKey(e, listId, inputId) {
   if(items[idx]) items[idx].classList.add('ac-sel');
 }
 
-// 네이버 지도 길찾기 링크 + 거리계산 버튼
+// 네이버 지도 길찾기 링크
 function updateNaverLink() {
-  const from    = document.getElementById('fFrom')?.value.trim();
-  const to      = document.getElementById('fTo')?.value.trim();
-  const el      = document.getElementById('naverLink');
-  const calcBtn = document.getElementById('calcDistBtn');
-  const note    = document.getElementById('calcDistNote');
+  const from = document.getElementById('fFrom')?.value.trim();
+  const to   = document.getElementById('fTo')?.value.trim();
+  const el   = document.getElementById('naverLink');
   if (!el) return;
   if (from && to) {
     el.href = `https://map.naver.com/p/directions/-/-/-/car?c=15,0,0,0,dh&departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}`;
     el.style.display = 'inline-flex';
-    if (calcBtn) calcBtn.style.display = 'inline-block';
-    if (note) note.style.display = (fromCoords && toCoords) ? 'none' : 'inline';
   } else {
     el.style.display = 'none';
-    if (calcBtn) calcBtn.style.display = 'none';
-    if (note)    note.style.display = 'none';
   }
 }
 
 function updateDayNaverLink() {
-  const from    = document.getElementById('dayFrom')?.value.trim();
-  const to      = document.getElementById('dayTo')?.value.trim();
-  const el      = document.getElementById('dayNaverLink');
-  const calcBtn = document.getElementById('dayCalcBtn');
+  const from = document.getElementById('dayFrom')?.value.trim();
+  const to   = document.getElementById('dayTo')?.value.trim();
+  const el   = document.getElementById('dayNaverLink');
   if (!el) return;
   if (from && to) {
     el.href = `https://map.naver.com/p/directions/-/-/-/car?c=15,0,0,0,dh&departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}`;
     el.style.display = 'inline-flex';
-    if (calcBtn) calcBtn.style.display = 'inline-block';
   } else {
     el.style.display = 'none';
-    if (calcBtn) calcBtn.style.display = 'none';
   }
 }
 
@@ -1538,7 +1743,6 @@ function renderVehicleAnalysis() {
 // ══════════════════════════════════════════
 function openDayModal(defaultType) {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
-  dayFromCoords = null; dayToCoords = null;
   document.getElementById('dayDate').value = todayStr();
   document.getElementById('dayType').value = defaultType || 'commute_in';
   document.getElementById('dayMemo').value = '';
@@ -1571,7 +1775,6 @@ function dayTypeChange() {
       document.getElementById('dayCar').value  = preset.car  || '';
       document.getElementById('dayKm').value   = '';
     }
-    dayFromCoords = null; dayToCoords = null;
   }
   updateDayNaverLink();
 }
@@ -1636,83 +1839,6 @@ function saveKmEdit() {
   closeKmModal();
   if (curTab === '자량관리') renderVehicleTab(); else render();
   toast(`주행거리 ${num(km)}km 으로 수정됨 ✓`);
-}
-
-// ══════════════════════════════════════════
-// 📍 카카오 주소 검색 + 거리 자동계산
-// ══════════════════════════════════════════
-function openAddrSearch(fieldId, coordKey) {
-  if (typeof daum === 'undefined' || typeof daum.Postcode === 'undefined') {
-    toast('주소검색 서비스를 로딩 중입니다. 잠시 후 다시 시도해주세요.','err');
-    return;
-  }
-  new daum.Postcode({
-    oncomplete: function(data) {
-      const addr = data.roadAddress || data.jibunAddress || data.address;
-      const el = document.getElementById(fieldId);
-      if (el) el.value = addr;
-      const coords = (data.y && data.x) ? { lat: parseFloat(data.y), lng: parseFloat(data.x) } : null;
-      // 좌표 저장
-      if (coordKey === 'from') { fromCoords = coords; updateNaverLink(); if (toCoords) calcDistance(true); }
-      else if (coordKey === 'to') { toCoords = coords; updateNaverLink(); if (fromCoords) calcDistance(true); }
-      else if (coordKey === 'dayFrom') { dayFromCoords = coords; updateDayNaverLink(); if (dayToCoords) calcDistanceModal(true); }
-      else if (coordKey === 'dayTo')   { dayToCoords = coords; updateDayNaverLink(); if (dayFromCoords) calcDistanceModal(true); }
-    }
-  }).open();
-}
-
-async function calcDistance(auto) {
-  if (!fromCoords || !toCoords) {
-    if (!auto) toast('📍 버튼으로 출발지·도착지를 검색하면 자동계산됩니다','err');
-    return;
-  }
-  const btn = document.getElementById('calcDistBtn');
-  if (btn) { btn.textContent = '⏳ 계산 중...'; btn.disabled = true; }
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${fromCoords.lng},${fromCoords.lat};${toCoords.lng},${toCoords.lat}?overview=false`;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('서버 오류');
-    const data = await resp.json();
-    if (data.code === 'Ok' && data.routes && data.routes[0]) {
-      const km = Math.round(data.routes[0].distance / 100) / 10;
-      document.getElementById('fKm').value = km;
-      const note = document.getElementById('calcDistNote');
-      if (note) note.style.display = 'none';
-      if (!auto) toast(`📏 편도 ${km}km 자동계산됨 ✓`);
-    } else {
-      throw new Error('경로 없음');
-    }
-  } catch(e) {
-    if (!auto) toast('거리 계산 실패 — 네이버 지도에서 직접 확인해주세요','err');
-  } finally {
-    if (btn) { btn.textContent = '📏 거리 자동계산'; btn.disabled = false; }
-  }
-}
-
-async function calcDistanceModal(auto) {
-  if (!dayFromCoords || !dayToCoords) {
-    if (!auto) toast('📍 버튼으로 출발지·도착지를 검색하면 자동계산됩니다','err');
-    return;
-  }
-  const btn = document.getElementById('dayCalcBtn');
-  if (btn) { btn.textContent = '⏳ 계산 중...'; btn.disabled = true; }
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${dayFromCoords.lng},${dayFromCoords.lat};${dayToCoords.lng},${dayToCoords.lat}?overview=false`;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('서버 오류');
-    const data = await resp.json();
-    if (data.code === 'Ok' && data.routes && data.routes[0]) {
-      const km = Math.round(data.routes[0].distance / 100) / 10;
-      document.getElementById('dayKm').value = km;
-      if (!auto) toast(`📏 편도 ${km}km 자동계산됨 ✓`);
-    } else {
-      throw new Error('경로 없음');
-    }
-  } catch(e) {
-    if (!auto) toast('거리 계산 실패 — 네이버 지도에서 직접 확인해주세요','err');
-  } finally {
-    if (btn) { btn.textContent = '📏 거리 자동계산'; btn.disabled = false; }
-  }
 }
 
 // ══════════════════════════════════════════
