@@ -669,11 +669,14 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <p>월~금 평일 기록을 자동으로 생성합니다. 이미 기록이 있는 날은 건너뜁니다.</p>
 
     <div class="fg" style="margin-top:0">
-      <label>대상 직원</label>
-      <select class="fs" id="afEmp" onchange="updateAutoFillPreview()">
-        <option value="current">현재 직원만</option>
-        <option value="all">전체 직원</option>
-      </select>
+      <label style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span>대상 직원</span>
+        <span style="display:flex;gap:10px">
+          <button type="button" onclick="afCheckAll(true)" style="font-size:11px;color:#60a5fa;background:none;border:none;cursor:pointer;padding:0">전체선택</button>
+          <button type="button" onclick="afCheckAll(false)" style="font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer;padding:0">전체해제</button>
+        </span>
+      </label>
+      <div id="afEmpList" style="background:#111827;border:1px solid #374151;border-radius:7px;max-height:140px;overflow-y:auto"></div>
     </div>
 
     <div class="fg">
@@ -713,9 +716,20 @@ tr:hover td{background:rgba(96,165,250,.03)}
         <label>외근 도착지 목록 <span style="color:#6b7280;font-weight:400">(쉼표로 구분 — 랜덤 선택됨)</span></label>
         <textarea class="ft" id="afBizDests" rows="2" placeholder="예: 강남구청, 서초구청, 송파구청, 마포구청, 여의도 현장"></textarea>
       </div>
+      <div class="fg" style="margin-top:8px">
+        <label>외근 적용 일수 &nbsp;<span style="color:#6b7280;font-weight:400" id="afBizDaysHint">(0 = 전체 평일)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          <input type="range" id="afBizDaysSlider" min="0" max="23" value="0"
+            style="flex:1;accent-color:#fb923c;cursor:pointer"
+            oninput="syncBizDays('slider')">
+          <input type="number" class="fi" id="afBizDays" value="0" min="0"
+            style="width:58px;text-align:center" oninput="syncBizDays('num')">
+          <span style="color:#6b7280;font-size:11px;white-space:nowrap">일</span>
+        </div>
+      </div>
       <div class="row2" style="margin-top:8px">
         <div class="fg" style="margin-top:0">
-          <label>외근 주행거리 범위 (랜덤)</label>
+          <label>주행거리 범위 (랜덤)</label>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="number" class="fi" id="afBizKmMin" value="5" min="0" style="flex:1">
             <span style="color:#6b7280;font-size:11px">~</span>
@@ -2131,13 +2145,51 @@ document.addEventListener('click', function(e) {
 function openAutoFill() {
   if (!emp) { toast('사원을 먼저 선택하세요', 'err'); return; }
   document.getElementById('autoFillMod').classList.add('on');
+  renderAfEmpList();
   updateBizSec();
+  syncBizDays('slider');
+  updateAutoFillPreview();
+}
+function renderAfEmpList() {
+  const el = document.getElementById('afEmpList');
+  if (!el) return;
+  if (!D.employees.length) {
+    el.innerHTML = '<div style="padding:10px 12px;color:#6b7280;font-size:12px">등록된 직원 없음</div>'; return;
+  }
+  el.innerHTML = D.employees.map((name, i) => `
+    <label style="display:flex;align-items:center;gap:9px;padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #1f2937;transition:.1s" onmouseenter="this.style.background='rgba(37,99,235,.08)'" onmouseleave="this.style.background=''">
+      <input type="checkbox" value="${esc(name)}" checked onchange="updateAutoFillPreview()" style="accent-color:#2563eb;cursor:pointer;width:14px;height:14px">
+      <span>${esc(name)}</span>
+    </label>`).join('');
+}
+function getAfTargets() {
+  const el = document.getElementById('afEmpList');
+  if (!el) return emp ? [emp] : [];
+  return [...el.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+}
+function afCheckAll(val) {
+  const el = document.getElementById('afEmpList');
+  if (!el) return;
+  el.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = val);
   updateAutoFillPreview();
 }
 function updateBizSec() {
   const t = document.getElementById('afType')?.value||'commute';
   const sec = document.getElementById('afBizSec');
   if (sec) sec.style.display = (t==='business'||t==='both') ? '' : 'none';
+}
+function syncBizDays(from) {
+  const slider = document.getElementById('afBizDaysSlider');
+  const num    = document.getElementById('afBizDays');
+  const hint   = document.getElementById('afBizDaysHint');
+  if (!slider||!num) return;
+  const total  = getWeekdays(yr, mo).length;
+  slider.max   = total;
+  if (from==='slider') num.value = slider.value;
+  else { slider.value = Math.min(Number(num.value)||0, total); num.value = slider.value; }
+  const val = Number(num.value)||0;
+  if (hint) hint.textContent = val===0 ? `(0 = 전체 평일 ${total}일 모두)` : `(평일 ${total}일 중 랜덤 ${val}일만 외근)`;
+  updateAutoFillPreview();
 }
 function closeAutoFill() {
   document.getElementById('autoFillMod').classList.remove('on');
@@ -2164,10 +2216,12 @@ function randTime(fromStr, toStr) {
 }
 
 function updateAutoFillPreview() {
-  const weekdays = getWeekdays(yr, mo);
-  const afEmpVal = document.getElementById('afEmp')?.value || 'current';
+  const weekdays  = getWeekdays(yr, mo);
   const afTypeVal = document.getElementById('afType')?.value || 'commute';
-  const targets = afEmpVal === 'all' ? D.employees : (emp ? [emp] : []);
+  const targets   = getAfTargets();
+  const bizDays   = Number(document.getElementById('afBizDays')?.value)||0;
+  // 외근은 bizDays개 날에만 적용 (0=전체)
+  const bizApply  = bizDays===0 ? weekdays.length : Math.min(bizDays, weekdays.length);
 
   let skipDays = 0, newRecs = 0;
   targets.forEach(name => {
@@ -2179,31 +2233,31 @@ function updateAutoFillPreview() {
         if (!hasIn)  newRecs++;
         if (!hasOut) newRecs++;
       }
-      if (afTypeVal==='business'||afTypeVal==='both') {
-        if (!hasBiz) newRecs++;
-      }
       if (hasIn||hasOut||hasBiz) skipDays++;
     });
+    // 외근은 bizApply일만
+    if (afTypeVal==='business'||afTypeVal==='both') newRecs += bizApply;
   });
 
   const pr = document.getElementById('afPreview');
   if (!pr) return;
   if (!targets.length) {
-    pr.innerHTML = '<span style="color:#f87171">대상 직원 없음</span>'; return;
+    pr.innerHTML = '<span style="color:#f87171">대상 직원을 선택하세요</span>'; return;
   }
-  pr.innerHTML = `<strong style="color:#f3f4f6">${yr}년 ${mo}월</strong> 평일 <strong style="color:#60a5fa">${weekdays.length}일</strong> &nbsp;·&nbsp; 대상 <strong style="color:#34d399">${targets.length}명</strong> &nbsp;·&nbsp; 신규 생성 <strong style="color:#fbbf24">${newRecs}건</strong>${skipDays?` <span style="color:#6b7280">(기존 기록 ${skipDays}건 스킵)</span>`:''}`;
+  const bizNote = (afTypeVal==='business'||afTypeVal==='both')
+    ? ` · 외근 <strong style="color:#fb923c">${bizApply}일/인</strong>` : '';
+  pr.innerHTML = `<strong style="color:#f3f4f6">${yr}년 ${mo}월</strong> 평일 <strong style="color:#60a5fa">${weekdays.length}일</strong>${bizNote} &nbsp;·&nbsp; 대상 <strong style="color:#34d399">${targets.length}명</strong> &nbsp;·&nbsp; 신규 생성 예상 <strong style="color:#fbbf24">${newRecs}건</strong>${skipDays?` <span style="color:#6b7280">(기존 ${skipDays}건 스킵)</span>`:''}`;
 }
 
 async function runAutoFill() {
-  if (!emp) { toast('사원을 먼저 선택하세요', 'err'); return; }
-  const afEmpVal  = document.getElementById('afEmp').value;
   const afTypeVal = document.getElementById('afType').value;
-  const inFrom  = document.getElementById('afInFrom').value  || '08:20';
-  const inTo    = document.getElementById('afInTo').value    || '09:10';
-  const outFrom = document.getElementById('afOutFrom').value || '17:30';
-  const outTo   = document.getElementById('afOutTo').value   || '18:30';
-  const targets = afEmpVal === 'all' ? [...D.employees] : (emp ? [emp] : []);
-  if (!targets.length) { toast('대상 직원 없음', 'err'); return; }
+  const inFrom    = document.getElementById('afInFrom').value  || '08:20';
+  const inTo      = document.getElementById('afInTo').value    || '09:10';
+  const outFrom   = document.getElementById('afOutFrom').value || '17:30';
+  const outTo     = document.getElementById('afOutTo').value   || '18:30';
+  const bizDays   = Number(document.getElementById('afBizDays')?.value)||0;
+  const targets   = getAfTargets();
+  if (!targets.length) { toast('대상 직원을 선택하세요', 'err'); return; }
 
   const weekdays = getWeekdays(yr, mo);
   const btn = document.getElementById('afRunBtn');
@@ -2214,6 +2268,19 @@ async function runAutoFill() {
 
   targets.forEach(name => {
     const p = D.presets[name] || {};
+    // 외근 적용 날짜: bizDays=0이면 전체, 아니면 무작위 N일 선택
+    const bizSet = new Set();
+    if (afTypeVal==='business'||afTypeVal==='both') {
+      const avail = [...weekdays];
+      const pick  = bizDays===0 ? avail.length : Math.min(bizDays, avail.length);
+      // Fisher-Yates shuffle → 앞 pick개
+      for (let i=avail.length-1; i>0; i--) {
+        const j = Math.floor(Math.random()*(i+1));
+        [avail[i],avail[j]] = [avail[j],avail[i]];
+      }
+      avail.slice(0,pick).forEach(d => bizSet.add(d));
+    }
+
     weekdays.forEach(date => {
       const hasIn  = D.records.some(r => r.emp===name && r.date===date && r.type==='commute' && (r.direction==='in'||!r.direction));
       const hasOut = D.records.some(r => r.emp===name && r.date===date && r.type==='commute' && r.direction==='out');
@@ -2232,7 +2299,7 @@ async function runAutoFill() {
           checkin_time:'', checkout_time:randTime(outFrom,outTo),
           id:makeId(), createdAt:new Date().toISOString() });
       }
-      if ((afTypeVal==='business'||afTypeVal==='both') && !hasBiz) {
+      if ((afTypeVal==='business'||afTypeVal==='both') && !hasBiz && bizSet.has(date)) {
         // 외근 — 랜덤 도착지 & 랜덤 km
         const bizDests = (document.getElementById('afBizDests')?.value||'')
           .split(',').map(s=>s.trim()).filter(Boolean);
