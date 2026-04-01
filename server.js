@@ -150,9 +150,6 @@ const server = http.createServer((req, res) => {
   // ── POST /api/import (데이터 복원) ──
   if (m === 'POST' && pathname === '/api/import') {
     readBody(req, async b => {
-      if (!b.pin || b.pin !== ADMIN_PIN) {
-        return sendJSON(res, { ok: false, msg: '관리자 PIN이 올바르지 않습니다' });
-      }
       if (!b.employees || !b.records) {
         return sendJSON(res, { ok: false, msg: '올바른 백업 파일이 아닙니다' });
       }
@@ -174,10 +171,6 @@ const server = http.createServer((req, res) => {
   // ── POST /api/employee ──
   if (m === 'POST' && pathname === '/api/employee') {
     readBody(req, async b => {
-      // PIN 검증
-      if (!b.pin || b.pin !== ADMIN_PIN) {
-        return sendJSON(res, { ok: false, msg: '관리자 PIN이 올바르지 않습니다' });
-      }
       const name = (b.name || '').trim();
       if (!name) return sendJSON(res, { ok: false, msg: '이름을 입력해주세요' });
       if (name.length > 20) return sendJSON(res, { ok: false, msg: '이름이 너무 깁니다 (최대 20자)' });
@@ -192,10 +185,6 @@ const server = http.createServer((req, res) => {
   // ── DELETE /api/employee/:name (기록/프리셋도 함께 삭제) ──
   if (m === 'DELETE' && pathname.startsWith('/api/employee/')) {
     readBody(req, async b => {
-      // PIN 검증
-      if (!b.pin || b.pin !== ADMIN_PIN) {
-        return sendJSON(res, { ok: false, msg: '관리자 PIN이 올바르지 않습니다' });
-      }
       const name = decodeURIComponent(pathname.replace('/api/employee/', ''));
       const recordCount = db.records.filter(r => r.emp === name).length;
 

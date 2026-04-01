@@ -673,8 +673,6 @@ let _mpYear = new Date().getFullYear();
 
 // ── DB (서버 API + localStorage 캐시) ──
 const STORAGE_KEY = 'vl_data';
-let sessionPin = '';
-
 // API 헬퍼
 async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -683,20 +681,6 @@ async function api(method, path, body) {
   return r.json();
 }
 
-// PIN 한 번만 입력받아 세션 동안 재사용
-async function getAdminPin() {
-  if (sessionPin) {
-    const v = await api('POST', '/api/verify-pin', { pin: sessionPin });
-    if (v.ok) return sessionPin;
-    sessionPin = '';
-  }
-  const p = prompt('관리자 PIN을 입력하세요:');
-  if (!p) return null;
-  const v = await api('POST', '/api/verify-pin', { pin: p });
-  if (!v.ok) { toast('PIN이 올바르지 않습니다','err'); return null; }
-  sessionPin = p;
-  return p;
-}
 
 async function loadDB() {
   try {
@@ -1023,10 +1007,8 @@ async function addEmp() {
   if (!name) { showMsg('이름을 입력해주세요','err'); return; }
   if (name.length > 20) { showMsg('이름이 너무 깁니다 (최대 20자)','err'); return; }
   if (D.employees.includes(name)) { showMsg('이미 등록된 사원입니다','err'); return; }
-  const pin = await getAdminPin();
-  if (!pin) return;
   try {
-    const res = await api('POST', '/api/employee', { name, pin });
+    const res = await api('POST', '/api/employee', { name });
     if (res.ok) { applyData(res.data); }
     else { showMsg(res.msg || '추가 실패','err'); return; }
   } catch(e) { D.employees.push(name); saveLocalCache(); }
@@ -1043,10 +1025,8 @@ async function delEmp(name) {
     ? `${name} 삭제 시 기록 ${recCount}건도 모두 삭제됩니다.\n정말 삭제할까요?`
     : `${name}을(를) 삭제할까요?`;
   if (!confirm(msg)) return;
-  const pin = await getAdminPin();
-  if (!pin) return;
   try {
-    const res = await api('DELETE', `/api/employee/${encodeURIComponent(name)}`, { pin });
+    const res = await api('DELETE', `/api/employee/${encodeURIComponent(name)}`, {});
     if (res.ok) { applyData(res.data); }
     else { toast(res.msg || '삭제 실패','err'); return; }
   } catch(e) {
@@ -1316,15 +1296,13 @@ async function doRestore(input) {
   const file = input.files[0];
   if (!file) return;
   if (!confirm('현재 모든 데이터가 백업 파일로 교체됩니다. 계속할까요?')) { input.value=''; return; }
-  const pin = await getAdminPin();
-  if (!pin) { input.value=''; return; }
   const reader = new FileReader();
   reader.onload = async e => {
     try {
       const data = JSON.parse(e.target.result);
       if (!data.employees || !data.records) { toast('올바른 백업 파일이 아닙니다','err'); return; }
       try {
-        const res = await api('POST', '/api/import', { ...data, pin });
+        const res = await api('POST', '/api/import', { ...data });
         if (res.ok) {
           applyData(res.data);
           renderEmpSel(); render();
