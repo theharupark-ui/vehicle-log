@@ -453,7 +453,10 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="card">
       <div class="card-h">
         <h3>📍 계기판 기록</h3>
-        <span style="font-size:12px;color:#6b7280" id="odoMonthLabel"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:#6b7280" id="odoMonthLabel"></span>
+          <button class="btn btn-green btn-sm" onclick="autoDistBizKm()" title="월초→월말 KM에서 출퇴근 제외 후 외근에 자동 배분">🔧 외근 KM 자동배분</button>
+        </div>
       </div>
       <div class="card-b">
         <!-- 차량 선택 -->
@@ -1391,11 +1394,15 @@ function expPDF() {
     <div class="s"><div class="sl">외근</div><div class="sv" style="color:#ea580c">${biz}<span style="font-size:10px"> 회</span></div></div>
     <div class="s"><div class="sl">주유금액</div><div class="sv" style="color:#b45309">${fl.toLocaleString()}<span style="font-size:10px"> 원</span></div></div>
   </div>
-  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
-  ${recs.map(r=>{return`<tr>
+  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th>${addrVisible?'<th>출발→도착</th>':''}<th>주행</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
+  ${recs.map(r=>{
+    const addrTd = addrVisible
+      ? `<td>${r.type==='business' ? (r.client||r.to||'거래처') : ((r.from||'')+(r.to?' → '+r.to:''))}</td>`
+      : '';
+    return`<tr>
     <td>${r.date||''}</td>
     <td><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:${bg[r.type]};color:${bc[r.type]}">${map[r.type]||r.type}</span></td>
-    <td>${r.car||'-'}</td><td>${r.from||''}${r.to?' → '+r.to:''}</td>
+    <td>${r.car||'-'}</td>${addrTd}
     <td style="text-align:right;font-weight:600">${r.km?Number(r.km).toLocaleString()+'km':'-'}</td>
     <td style="text-align:right">${r.fuel?Number(r.fuel).toLocaleString()+'원':'-'}</td>
     <td>${r.memo||'-'}</td>
@@ -2037,6 +2044,65 @@ function renderVehicleAnalysis() {
       </tbody></table>
     </div>` : ''}
   `;
+}
+
+// ══════════════════════════════════════════
+// 🔧 외근 KM 자동배분 (계기판 기준)
+// ══════════════════════════════════════════
+async function autoDistBizKm() {
+  const vehicleId = document.getElementById('odoVehicle')?.value;
+  if (!vehicleId) { toast('차량을 먼저 선택해주세요', 'err'); return; }
+
+  const odo = (D.odometerRecords||[]).find(o => o.vehicleId===vehicleId && o.year==yr && o.month==mo);
+  if (!odo || !odo.startKm || !odo.endKm) {
+    toast('월초·월말 계기판을 먼저 저장해주세요', 'err'); return;
+  }
+
+  const ym       = `${yr}-${pad(mo)}`;
+  const totalKm  = odo.endKm - odo.startKm;
+  if (totalKm <= 0) { toast('월말 계기판이 월초보다 작습니다', 'err'); return; }
+
+  // 해당 차량 + 이번달 출퇴근 KM 합산
+  const v = D.vehicles.find(v => v.id === vehicleId);
+  const plate = v?.plate || '';
+  const monthRecs = D.records.filter(r => (r.date||'').startsWith(ym));
+  const comKm  = monthRecs
+    .filter(r => r.type==='commute' && r.car?.replace(/\s/g,'')===plate.replace(/\s/g,''))
+    .reduce((s,r)=>s+Number(r.km||0), 0);
+  const bizRecs = monthRecs.filter(r =>
+    r.type==='business' && r.car?.replace(/\s/g,'')===plate.replace(/\s/g,'')
+  );
+
+  if (!bizRecs.length) { toast('이번달 해당 차량 외근 기록이 없습니다', 'err'); return; }
+
+  const bizTotalKm = totalKm - comKm;
+  if (bizTotalKm <= 0) {
+    toast(`출퇴근 KM(${num(comKm)}km)이 총 이동거리(${num(totalKm)}km)를 초과합니다`, 'err'); return;
+  }
+
+  // 균등 배분 (나머지는 첫 번째 기록에 추가)
+  const base    = Math.floor(bizTotalKm / bizRecs.length);
+  const remain  = bizTotalKm - base * bizRecs.length;
+
+  const confirmMsg = `📊 자동배분 계획\n\n계기판 총 이동: ${num(totalKm)}km\n출퇴근 KM: ${num(comKm)}km\n─────────────────\n외근 배분 KM: ${num(bizTotalKm)}km ÷ ${bizRecs.length}건\n= 건당 ${num(base)}km${remain ? ` (첫 기록 +${remain}km)` : ''}\n\n적용하시겠습니까?`;
+  if (!confirm(confirmMsg)) return;
+
+  // PATCH 각 외근 기록
+  let updated = 0;
+  for (let i = 0; i < bizRecs.length; i++) {
+    const rec = bizRecs[i];
+    const newKm = base + (i === 0 ? remain : 0);
+    try {
+      const res = await api('PATCH', `/api/record/${rec.id}`, { km: newKm });
+      if (res.ok) { applyData(res.data); updated++; }
+      else { rec.km = newKm; updated++; }
+    } catch(e) { rec.km = newKm; updated++; }
+  }
+  if (updated > 0 && !D.records.find(r => r.id === bizRecs[0].id)?.km) saveLocalCache();
+
+  renderVehicleAnalysis();
+  render();
+  toast(`✅ 외근 ${updated}건에 ${num(bizTotalKm)}km 배분 완료`);
 }
 
 // ══════════════════════════════════════════
