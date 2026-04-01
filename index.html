@@ -284,6 +284,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <button class="nbtn" onclick="chMon(1)">›</button>
     <button class="exp-btn" onclick="goNow()">오늘</button>
     <button class="exp-btn" onclick="openAutoFill()" style="border-color:#7c3aed;color:#a78bfa">📅 자동입력</button>
+    <button class="exp-btn" onclick="openDelMonth()" style="border-color:#dc2626;color:#f87171">🗑 이번달 삭제</button>
     <span style="margin-left:auto;font-size:12px;color:#6b7280" id="rCnt">0건</span>
   </div>
 
@@ -658,6 +659,26 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="ma">
       <button class="btn btn-gray" onclick="closeKmModal()">취소</button>
       <button class="btn btn-blue" onclick="saveKmEdit()">수정</button>
+    </div>
+  </div>
+</div>
+
+<!-- 🗑 이번달 삭제 확인 모달 -->
+<div class="ov" id="delMonthMod">
+  <div class="modal" style="width:400px">
+    <h3 style="color:#f87171">🗑 이번달 기록 삭제</h3>
+    <p id="delMonthDesc" style="margin-top:8px;margin-bottom:16px;line-height:1.6"></p>
+    <div class="fg" style="margin-top:0">
+      <label>삭제 대상</label>
+      <select class="fs" id="delMonthScope">
+        <option value="current">현재 직원만</option>
+        <option value="all">전체 직원</option>
+      </select>
+    </div>
+    <div style="margin-top:12px;padding:10px 12px;background:#111827;border-radius:8px;border:1px solid #374151;font-size:12px" id="delMonthPreview"></div>
+    <div class="ma">
+      <button class="btn btn-gray" onclick="closeDelMonth()">취소</button>
+      <button class="btn" style="background:#dc2626;color:#fff" onclick="runDelMonth()">삭제 확인</button>
     </div>
   </div>
 </div>
@@ -2138,6 +2159,65 @@ document.addEventListener('click', function(e) {
     picker.classList.remove('on');
   }
 });
+
+// ══════════════════════════════════════════
+// 🗑 이번달 기록 전체삭제
+// ══════════════════════════════════════════
+function openDelMonth() {
+  document.getElementById('delMonthMod').classList.add('on');
+  updateDelMonthPreview();
+  document.getElementById('delMonthScope').onchange = updateDelMonthPreview;
+}
+function closeDelMonth() {
+  document.getElementById('delMonthMod').classList.remove('on');
+}
+function updateDelMonthPreview() {
+  const scope   = document.getElementById('delMonthScope')?.value || 'current';
+  const targets = scope === 'all' ? D.employees : (emp ? [emp] : []);
+  const ym      = `${yr}-${pad(mo)}`;
+  let count = 0;
+  targets.forEach(name => {
+    count += D.records.filter(r => r.emp === name && (r.date||'').startsWith(ym)).length;
+  });
+  const desc = document.getElementById('delMonthDesc');
+  const prev = document.getElementById('delMonthPreview');
+  if (desc) desc.textContent = `${yr}년 ${mo}월 기록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.`;
+  if (prev) {
+    if (!targets.length) {
+      prev.innerHTML = '<span style="color:#f87171">대상 직원 없음</span>'; return;
+    }
+    prev.innerHTML = `대상 <strong style="color:#f3f4f6">${targets.length}명</strong> &nbsp;·&nbsp; 삭제 예정 <strong style="color:#f87171">${count}건</strong>`;
+  }
+}
+async function runDelMonth() {
+  const scope   = document.getElementById('delMonthScope')?.value || 'current';
+  const targets = scope === 'all' ? D.employees : (emp ? [emp] : []);
+  const ym      = `${yr}-${pad(mo)}`;
+  if (!targets.length) { toast('대상 직원 없음', 'err'); return; }
+  const btn = document.querySelector('#delMonthMod .btn[onclick="runDelMonth()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '삭제 중...'; }
+  try {
+    if (scope === 'all') {
+      // 전체 직원 — ym 필터만
+      const res = await api('DELETE', '/api/records/bulk', { ym });
+      if (res.ok) applyData(res.data);
+      else { D.records = D.records.filter(r => !(r.date||'').startsWith(ym)); saveLocalCache(); }
+    } else {
+      // 현재 직원만
+      const res = await api('DELETE', '/api/records/bulk', { emp, ym });
+      if (res.ok) applyData(res.data);
+      else { D.records = D.records.filter(r => !(r.emp===emp && (r.date||'').startsWith(ym))); saveLocalCache(); }
+    }
+  } catch(e) {
+    if (scope==='all') D.records = D.records.filter(r => !(r.date||'').startsWith(ym));
+    else D.records = D.records.filter(r => !(r.emp===emp && (r.date||'').startsWith(ym)));
+    saveLocalCache();
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '삭제 확인'; }
+  closeDelMonth();
+  render();
+  toast(`🗑 ${yr}년 ${mo}월 기록 삭제 완료`);
+}
 
 // ══════════════════════════════════════════
 // 📅 이번달 자동입력 (월~금 평일)

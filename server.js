@@ -277,6 +277,23 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── DELETE /api/records/bulk (이번달 전체삭제 등) ──
+  if (m === 'DELETE' && pathname === '/api/records/bulk') {
+    readBody(req, async b => {
+      const before = db.records.length;
+      // emp: 특정 사원만 (없으면 전체), ym: "YYYY-MM" 필터
+      db.records = db.records.filter(r => {
+        const matchEmp = b.emp ? r.emp === b.emp : true;
+        const matchYm  = b.ym  ? (r.date||'').startsWith(b.ym) : true;
+        return !(matchEmp && matchYm);
+      });
+      const deleted = before - db.records.length;
+      await saveDB();
+      console.log(`[일괄삭제] ${deleted}건 삭제됨 emp=${b.emp||'전체'} ym=${b.ym||'전체'}`);
+      sendJSON(res, { ok: true, deleted, data: db });
+    }); return;
+  }
+
   // ── POST /api/vehicle ──
   if (m === 'POST' && pathname === '/api/vehicle') {
     readBody(req, async b => {
