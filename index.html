@@ -847,6 +847,13 @@ function applyData(data) {
 const pad = n => String(n).padStart(2,'0');
 const num = n => Number(n||0).toLocaleString();
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); // [버그수정] XSS 방지
+// 유형 라벨: 출퇴근은 방향에 따라 출근/퇴근으로 분리
+const typeLabel = r => {
+  if (r.type === 'commute') return r.direction === 'out' ? '퇴근' : '출근';
+  if (r.type === 'business') return '외근';
+  if (r.type === 'fuel')     return '주유';
+  return r.type || '';
+};
 
 
 // ── 초기화 ──
@@ -1328,10 +1335,9 @@ function expCSV() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const recs = curRecs();
   if (!recs.length) { toast('기록 없음','err'); return; }
-  const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
   const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','주유금액','방문처','업무내용']];
   recs.forEach(r => {
-    rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']);
+    rows.push([r.date,typeLabel(r),r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']);
   });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -1341,12 +1347,11 @@ function expCSV() {
 
 // 전체 직원 월간 CSV
 function expAllCSV() {
-  const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
   const rows = [['사원','날짜','유형','차량번호','출발지','도착지','주행(km)','주유금액','방문처','업무내용']];
   const recs = D.records.filter(r=>r.date?.startsWith(`${yr}-${pad(mo)}`)).sort((a,b)=>(a.emp+a.date)>(b.emp+b.date)?1:-1);
   if (!recs.length) { toast('기록 없음','err'); return; }
   recs.forEach(r => {
-    rows.push([r.emp,r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']);
+    rows.push([r.emp,r.date,typeLabel(r),r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']);
   });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -1358,9 +1363,9 @@ function expPDF() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const recs = curRecs();
   if (!recs.length) { toast('기록 없음','err'); return; }
-  const map={commute:'출퇴근',business:'외근',fuel:'주유'};
-  const bc={commute:'#2563eb',business:'#ea580c',fuel:'#16a34a'};
-  const bg={commute:'#dbeafe',business:'#ffedd5',fuel:'#dcfce7'};
+  const bc={commute:'#2563eb',business:'#ea580c',fuel:'#16a34a',commute_out:'#7c3aed'};
+  const bg={commute:'#dbeafe',business:'#ffedd5',fuel:'#dcfce7',commute_out:'#ede9fe'};
+  const pdfTypeKey = r => r.type==='commute' && r.direction==='out' ? 'commute_out' : r.type;
   const km=recs.reduce((s,r)=>s+Number(r.km||0),0);
   const com=recs.filter(r=>r.type==='commute').length;
   const biz=recs.filter(r=>r.type==='business').length;
@@ -1401,7 +1406,7 @@ function expPDF() {
       : '';
     return`<tr>
     <td>${r.date||''}</td>
-    <td><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:${bg[r.type]};color:${bc[r.type]}">${map[r.type]||r.type}</span></td>
+    <td><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:${bg[pdfTypeKey(r)]||'#f3f4f6'};color:${bc[pdfTypeKey(r)]||'#374151'}">${typeLabel(r)}</span></td>
     <td>${r.car||'-'}</td>${addrTd}
     <td style="text-align:right;font-weight:600">${r.km?Number(r.km).toLocaleString()+'km':'-'}</td>
     <td style="text-align:right">${r.fuel?Number(r.fuel).toLocaleString()+'원':'-'}</td>
@@ -2080,18 +2085,27 @@ async function autoDistBizKm() {
     toast(`출퇴근 KM(${num(comKm)}km)이 총 이동거리(${num(totalKm)}km)를 초과합니다`, 'err'); return;
   }
 
-  // 균등 배분 (나머지는 첫 번째 기록에 추가)
-  const base    = Math.floor(bizTotalKm / bizRecs.length);
-  const remain  = bizTotalKm - base * bizRecs.length;
+  // 랜덤 배분 — 무작위 가중치로 비율 결정 후 정수 km 배분
+  const weights = bizRecs.map(() => 1 + Math.random() * 9); // 1~10 랜덤
+  const wSum    = weights.reduce((a,b) => a+b, 0);
+  const kmDist  = weights.map((w,i) => {
+    const v = Math.round(bizTotalKm * w / wSum);
+    return Math.max(1, v); // 최소 1km
+  });
+  // 합계 보정 (반올림 오차)
+  const distSum = kmDist.reduce((a,b)=>a+b,0);
+  kmDist[0] += bizTotalKm - distSum;
+  if (kmDist[0] < 1) kmDist[0] = 1;
 
-  const confirmMsg = `📊 자동배분 계획\n\n계기판 총 이동: ${num(totalKm)}km\n출퇴근 KM: ${num(comKm)}km\n─────────────────\n외근 배분 KM: ${num(bizTotalKm)}km ÷ ${bizRecs.length}건\n= 건당 ${num(base)}km${remain ? ` (첫 기록 +${remain}km)` : ''}\n\n적용하시겠습니까?`;
+  const preview = kmDist.map((k,i)=>`  ${bizRecs[i].date} : ${num(k)}km`).join('\n');
+  const confirmMsg = `📊 외근 KM 랜덤 배분 계획\n\n계기판 총 이동: ${num(totalKm)}km\n출퇴근 KM: ${num(comKm)}km\n외근 배분 합계: ${num(bizTotalKm)}km (${bizRecs.length}건)\n\n${preview}\n\n적용하시겠습니까?`;
   if (!confirm(confirmMsg)) return;
 
   // PATCH 각 외근 기록
   let updated = 0;
   for (let i = 0; i < bizRecs.length; i++) {
     const rec = bizRecs[i];
-    const newKm = base + (i === 0 ? remain : 0);
+    const newKm = kmDist[i];
     try {
       const res = await api('PATCH', `/api/record/${rec.id}`, { km: newKm });
       if (res.ok) { applyData(res.data); updated++; }
