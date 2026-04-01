@@ -313,7 +313,8 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="card">
       <div class="card-h">
         <h3>기록 추가</h3>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="exp-btn" id="addrToggleBtn" onclick="toggleAddr()" style="border-color:#4b5563;color:#9ca3af">👁 주소 숨기기</button>
           <button class="exp-btn" onclick="expCSV()">⬇ CSV</button>
           <button class="exp-btn" onclick="expPDF()">🖨 PDF</button>
         </div>
@@ -783,6 +784,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
 let D = {employees:[], records:[], presets:{}, vehicles:[], odometerRecords:[]};
 let emp = '', yr = new Date().getFullYear(), mo = new Date().getMonth()+1;
 let preset = null, curTab = '입력';
+let addrVisible = true; // 주소 표시/숨기기
 // 월 피커 임시 연도
 let _mpYear = new Date().getFullYear();
 
@@ -957,12 +959,32 @@ function bdg(t, direction) {
   return '';
 }
 
+function addrCell(r) {
+  if (!addrVisible) return '<span style="color:#4b5563;font-size:11px">숨김</span>';
+  if (r.type === 'business') {
+    // 외근: 거래처명 표시 (client 있으면 우선, 없으면 도착지명, 없으면 '거래처')
+    const label = r.client || r.to || '거래처';
+    return `<span style="color:#fb923c">${esc(label)}</span>`;
+  }
+  return `${esc(r.from||'')}${r.to?' <span style="color:#6b7280">→</span> '+esc(r.to):''}`;
+}
+function toggleAddr() {
+  addrVisible = !addrVisible;
+  const btn = document.getElementById('addrToggleBtn');
+  if (btn) {
+    btn.textContent = addrVisible ? '👁 주소 숨기기' : '👁 주소 보기';
+    btn.style.borderColor = addrVisible ? '#4b5563' : '#2563eb';
+    btn.style.color       = addrVisible ? '#9ca3af' : '#60a5fa';
+  }
+  render();
+}
 function renderTable(recs, id) {
   const el = document.getElementById(id);
   if (!recs.length) { el.innerHTML='<div class="empty">🚗 기록 없음</div>'; return; }
   const totalKm = recs.reduce((s,r)=>s+Number(r.km||0),0);
   el.innerHTML = `<table><thead><tr>
-    <th>날짜</th><th>유형</th><th>차량</th><th>출발→도착</th>
+    <th>날짜</th><th>유형</th><th>차량</th>
+    <th>${addrVisible ? '출발→도착' : '<span style="color:#4b5563">주소(숨김)</span>'}</th>
     <th>주행거리</th><th>주유금액</th><th>업무내용</th><th></th>
   </tr></thead><tbody>` +
   recs.map(r => {
@@ -970,7 +992,7 @@ function renderTable(recs, id) {
       <td class="tm">${esc(r.date?.replace(/-/g,'/'))}</td>
       <td>${bdg(r.type, r.direction)}</td>
       <td class="tm">${esc(r.car||'-')}</td>
-      <td class="tc">${esc(r.from||'')}${r.to?' → '+esc(r.to):''}</td>
+      <td class="tc">${addrCell(r)}</td>
       <td class="tm" style="white-space:nowrap">
         <span style="font-weight:600;color:#60a5fa">${r.km?num(r.km)+'km':'0km'}</span>
         <button class="btn-km-edit" onclick="openKmModal('${esc(r.id)}','${esc(r.date)}',${Number(r.km||0)})">✏ 수정</button>
