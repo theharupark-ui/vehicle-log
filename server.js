@@ -224,6 +224,34 @@ const server = http.createServer((req, res) => {
     }); return;
   }
 
+  // ── POST /api/records/bulk (자동입력 - 여러 기록 한번에 저장) ──
+  if (m === 'POST' && pathname === '/api/records/bulk') {
+    readBody(req, async b => {
+      const records = b.records;
+      if (!Array.isArray(records) || !records.length) {
+        return sendJSON(res, { ok: false, msg: '기록 배열이 비어있습니다' });
+      }
+      let added = 0;
+      for (const r of records) {
+        if (!r.emp || !r.date) continue;
+        if (!db.employees.includes(r.emp)) continue;
+        // 중복 방지: 같은 emp+date+type+direction 이미 있으면 스킵
+        const dup = db.records.some(x =>
+          x.emp === r.emp && x.date === r.date &&
+          x.type === r.type && (x.direction||'') === (r.direction||'')
+        );
+        if (dup) continue;
+        r.id = Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + added;
+        r.createdAt = new Date().toISOString();
+        db.records.push(r);
+        added++;
+      }
+      await saveDB();
+      console.log(`[자동입력] ${added}건 추가됨`);
+      sendJSON(res, { ok: true, added, data: db });
+    }); return;
+  }
+
   // ── PATCH /api/record/:id (퇴근 시각 업데이트) ──
   if (m === 'PATCH' && pathname.startsWith('/api/record/')) {
     const id = pathname.replace('/api/record/', '');

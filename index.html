@@ -283,6 +283,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
     </div>
     <button class="nbtn" onclick="chMon(1)">›</button>
     <button class="exp-btn" onclick="goNow()">오늘</button>
+    <button class="exp-btn" onclick="openAutoFill()" style="border-color:#7c3aed;color:#a78bfa">📅 자동입력</button>
     <span style="margin-left:auto;font-size:12px;color:#6b7280" id="rCnt">0건</span>
   </div>
 
@@ -657,6 +658,61 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="ma">
       <button class="btn btn-gray" onclick="closeKmModal()">취소</button>
       <button class="btn btn-blue" onclick="saveKmEdit()">수정</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📅 자동입력 모달 -->
+<div class="ov" id="autoFillMod">
+  <div class="modal" style="width:480px">
+    <h3>📅 이번달 자동입력</h3>
+    <p>월~금 평일 기록을 자동으로 생성합니다. 이미 기록이 있는 날은 건너뜁니다.</p>
+
+    <div class="fg" style="margin-top:0">
+      <label>대상 직원</label>
+      <select class="fs" id="afEmp" onchange="updateAutoFillPreview()">
+        <option value="current">현재 직원만</option>
+        <option value="all">전체 직원</option>
+      </select>
+    </div>
+
+    <div class="fg">
+      <label>기록 유형</label>
+      <select class="fs" id="afType" onchange="updateAutoFillPreview()">
+        <option value="commute">출퇴근만 (출근 + 퇴근)</option>
+        <option value="business">외근만</option>
+        <option value="both">출퇴근 + 외근</option>
+      </select>
+    </div>
+
+    <div id="afTimeSec">
+      <div class="row2" style="margin-top:10px">
+        <div class="fg" style="margin-top:0">
+          <label>출근 시간 범위 (랜덤)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="time" class="fi" id="afInFrom" value="08:20" style="flex:1">
+            <span style="color:#6b7280;font-size:11px">~</span>
+            <input type="time" class="fi" id="afInTo" value="09:10" style="flex:1">
+          </div>
+        </div>
+        <div class="fg" style="margin-top:0">
+          <label>퇴근 시간 범위 (랜덤)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="time" class="fi" id="afOutFrom" value="17:30" style="flex:1">
+            <span style="color:#6b7280;font-size:11px">~</span>
+            <input type="time" class="fi" id="afOutTo" value="18:30" style="flex:1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;padding:11px 13px;background:#111827;border-radius:8px;border:1px solid #374151;font-size:12px;line-height:1.6">
+      <span id="afPreview" style="color:#9ca3af">계산 중...</span>
+    </div>
+
+    <div class="ma">
+      <button class="btn btn-gray" onclick="closeAutoFill()">취소</button>
+      <button class="btn btn-blue" id="afRunBtn" onclick="runAutoFill()">🚀 자동입력 시작</button>
     </div>
   </div>
 </div>
@@ -2044,6 +2100,139 @@ document.addEventListener('click', function(e) {
     picker.classList.remove('on');
   }
 });
+
+// ══════════════════════════════════════════
+// 📅 이번달 자동입력 (월~금 평일)
+// ══════════════════════════════════════════
+function openAutoFill() {
+  if (!emp) { toast('사원을 먼저 선택하세요', 'err'); return; }
+  document.getElementById('autoFillMod').classList.add('on');
+  updateAutoFillPreview();
+}
+function closeAutoFill() {
+  document.getElementById('autoFillMod').classList.remove('on');
+}
+
+function getWeekdays(y, m) {
+  const days = [];
+  const d = new Date(y, m-1, 1);
+  while (d.getMonth() === m-1) {
+    const dow = d.getDay(); // 0=일 1=월 ... 5=금 6=토
+    if (dow >= 1 && dow <= 5) {
+      days.push(`${y}-${pad(m)}-${pad(d.getDate())}`);
+    }
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
+
+function randTime(fromStr, toStr) {
+  const toMins = s => { const [h,m]=s.split(':').map(Number); return h*60+m; };
+  const f = toMins(fromStr), t = toMins(toStr);
+  const mins = f + Math.floor(Math.random() * (t - f + 1));
+  return `${pad(Math.floor(mins/60))}:${pad(mins%60)}`;
+}
+
+function updateAutoFillPreview() {
+  const weekdays = getWeekdays(yr, mo);
+  const afEmpVal = document.getElementById('afEmp')?.value || 'current';
+  const afTypeVal = document.getElementById('afType')?.value || 'commute';
+  const targets = afEmpVal === 'all' ? D.employees : (emp ? [emp] : []);
+
+  let skipDays = 0, newRecs = 0;
+  targets.forEach(name => {
+    weekdays.forEach(date => {
+      const hasIn  = D.records.some(r => r.emp===name && r.date===date && r.type==='commute' && (r.direction==='in'||!r.direction));
+      const hasOut = D.records.some(r => r.emp===name && r.date===date && r.type==='commute' && r.direction==='out');
+      const hasBiz = D.records.some(r => r.emp===name && r.date===date && r.type==='business');
+      if (afTypeVal==='commute'||afTypeVal==='both') {
+        if (!hasIn)  newRecs++;
+        if (!hasOut) newRecs++;
+      }
+      if (afTypeVal==='business'||afTypeVal==='both') {
+        if (!hasBiz) newRecs++;
+      }
+      if (hasIn||hasOut||hasBiz) skipDays++;
+    });
+  });
+
+  const pr = document.getElementById('afPreview');
+  if (!pr) return;
+  if (!targets.length) {
+    pr.innerHTML = '<span style="color:#f87171">대상 직원 없음</span>'; return;
+  }
+  pr.innerHTML = `<strong style="color:#f3f4f6">${yr}년 ${mo}월</strong> 평일 <strong style="color:#60a5fa">${weekdays.length}일</strong> &nbsp;·&nbsp; 대상 <strong style="color:#34d399">${targets.length}명</strong> &nbsp;·&nbsp; 신규 생성 <strong style="color:#fbbf24">${newRecs}건</strong>${skipDays?` <span style="color:#6b7280">(기존 기록 ${skipDays}건 스킵)</span>`:''}`;
+}
+
+async function runAutoFill() {
+  if (!emp) { toast('사원을 먼저 선택하세요', 'err'); return; }
+  const afEmpVal  = document.getElementById('afEmp').value;
+  const afTypeVal = document.getElementById('afType').value;
+  const inFrom  = document.getElementById('afInFrom').value  || '08:20';
+  const inTo    = document.getElementById('afInTo').value    || '09:10';
+  const outFrom = document.getElementById('afOutFrom').value || '17:30';
+  const outTo   = document.getElementById('afOutTo').value   || '18:30';
+  const targets = afEmpVal === 'all' ? [...D.employees] : (emp ? [emp] : []);
+  if (!targets.length) { toast('대상 직원 없음', 'err'); return; }
+
+  const weekdays = getWeekdays(yr, mo);
+  const btn = document.getElementById('afRunBtn');
+  btn.disabled = true; btn.textContent = '처리 중...';
+
+  const newRecords = [];
+  const makeId = () => Date.now()+'_'+Math.random().toString(36).slice(2,6)+'_'+newRecords.length;
+
+  targets.forEach(name => {
+    const p = D.presets[name] || {};
+    weekdays.forEach(date => {
+      const hasIn  = D.records.some(r => r.emp===name && r.date===date && r.type==='commute' && (r.direction==='in'||!r.direction));
+      const hasOut = D.records.some(r => r.emp===name && r.date===date && r.type==='commute' && r.direction==='out');
+      const hasBiz = D.records.some(r => r.emp===name && r.date===date && r.type==='business');
+      if ((afTypeVal==='commute'||afTypeVal==='both') && !hasIn) {
+        newRecords.push({ emp:name, date, type:'commute', direction:'in',
+          car:p.car||'', from:p.from||'', to:p.to||'', km:Number(p.km)||0, fuel:0,
+          client:'', memo:'출근',
+          checkin_time:randTime(inFrom,inTo), checkout_time:'',
+          id:makeId(), createdAt:new Date().toISOString() });
+      }
+      if ((afTypeVal==='commute'||afTypeVal==='both') && !hasOut) {
+        newRecords.push({ emp:name, date, type:'commute', direction:'out',
+          car:p.car||'', from:p.to||'', to:p.from||'', km:Number(p.km)||0, fuel:0,
+          client:'', memo:'퇴근',
+          checkin_time:'', checkout_time:randTime(outFrom,outTo),
+          id:makeId(), createdAt:new Date().toISOString() });
+      }
+      if ((afTypeVal==='business'||afTypeVal==='both') && !hasBiz) {
+        newRecords.push({ emp:name, date, type:'business', direction:'',
+          car:p.car||'', from:p.to||p.from||'', to:'', km:0, fuel:0,
+          client:'', memo:'외근',
+          checkin_time:randTime(inFrom,inTo), checkout_time:randTime(outFrom,outTo),
+          id:makeId(), createdAt:new Date().toISOString() });
+      }
+    });
+  });
+
+  if (!newRecords.length) {
+    toast('추가할 기록 없음 (모두 기존 등록됨)', 'err');
+    btn.disabled = false; btn.textContent = '🚀 자동입력 시작'; return;
+  }
+
+  try {
+    const res = await api('POST', '/api/records/bulk', { records: newRecords });
+    if (res.ok) { applyData(res.data); toast(`✅ ${res.added}건 자동입력 완료!`); }
+    else {
+      newRecords.forEach(r => D.records.push(r)); saveLocalCache();
+      toast(`✅ ${newRecords.length}건 자동입력 완료! (로컬 저장)`);
+    }
+  } catch(e) {
+    newRecords.forEach(r => D.records.push(r)); saveLocalCache();
+    toast(`✅ ${newRecords.length}건 자동입력 완료! (로컬 저장)`);
+  }
+
+  btn.disabled = false; btn.textContent = '🚀 자동입력 시작';
+  closeAutoFill();
+  render();
+}
 
 init();
 </script>
