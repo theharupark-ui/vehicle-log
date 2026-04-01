@@ -1642,10 +1642,18 @@ function loadOdoRecord() {
   document.getElementById('odoEnd').value   = hasEnd   ? rec.endKm   : '';
 
   // 버튼 텍스트: 이미 저장된 값 있으면 "✏ 수정", 없으면 "저장"
-  const startBtn = document.querySelector('#odoStartBtn');
-  const endBtn   = document.querySelector('#odoEndBtn');
-  if (startBtn) { startBtn.textContent = hasStart ? '✏ 수정' : '저장'; startBtn.className = hasStart ? 'btn btn-gray btn-sm' : 'btn btn-blue btn-sm'; }
-  if (endBtn)   { endBtn.textContent   = hasEnd   ? '✏ 수정' : '저장'; endBtn.className   = hasEnd   ? 'btn btn-gray btn-sm' : 'btn btn-blue btn-sm'; }
+  const startBtn = document.getElementById('odoStartBtn');
+  const endBtn   = document.getElementById('odoEndBtn');
+  if (startBtn) {
+    startBtn.textContent = hasStart ? '✏ 수정' : '저장';
+    startBtn.className   = hasStart ? 'btn btn-gray btn-sm' : 'btn btn-blue btn-sm';
+    startBtn.style.whiteSpace = 'nowrap';
+  }
+  if (endBtn) {
+    endBtn.textContent = hasEnd ? '✏ 수정' : '저장';
+    endBtn.className   = hasEnd ? 'btn btn-gray btn-sm' : 'btn btn-blue btn-sm';
+    endBtn.style.whiteSpace = 'nowrap';
+  }
 
   // 저장 현황 표시
   const msg = document.getElementById('odoRecord');
