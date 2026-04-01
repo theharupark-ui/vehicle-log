@@ -8,7 +8,75 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="업무일지">
 <title>차량업무일지 v2</title>
-<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js">// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
+</script>
 <!-- PWA 매니페스트 인라인 -->
 <script>
 (function(){
@@ -26,6 +94,74 @@
   link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
   document.head.appendChild(link);
 })();
+// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -226,6 +362,144 @@ tr:hover td{background:rgba(96,165,250,.03)}
   .btn-checkin,.btn-checkout{width:100%}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js">// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
+</script>
+<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous">// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
+</script>
 </head>
 <body>
 
@@ -241,6 +515,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
     </select>
     <button class="btn btn-gray btn-sm" onclick="openPreset()" title="출퇴근 고정값 설정">⚙</button>
     <button class="btn btn-gray btn-sm" onclick="openEmpModal()" title="사원 관리">👤</button>
+    <button class="btn btn-sm" onclick="openKakaoKeyMod()" title="카카오 앱키 설정" style="background:#FEE500;color:#191600;font-weight:700;border:none">🟡</button>
   </div>
 </nav>
 
@@ -317,6 +592,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
           <button class="exp-btn" id="addrToggleBtn" onclick="toggleAddr()" style="border-color:#4b5563;color:#9ca3af">👁 주소 숨기기</button>
           <button class="exp-btn" onclick="expCSV()">⬇ CSV</button>
           <button class="exp-btn" onclick="expPDF()">🖨 PDF</button>
+          <button class="exp-btn" onclick="kakaoShareVehicle()" id="kakaoVehicleBtn" style="background:#FEE500;color:#191600;border-color:#FEE500;font-weight:700">🟡 카카오</button>
         </div>
       </div>
       <div class="card-b">
@@ -1388,7 +1664,145 @@ function expPDF() {
   .sign .lbl{font-size:10px;color:#666;margin-bottom:4px;text-align:center}
   .sign .line{width:80px;border-bottom:1px solid #999;height:26px}
   .foot{margin-top:12px;display:flex;justify-content:space-between;font-size:10px;color:#aaa;border-top:1px solid #ddd;padding-top:8px}
-  @media print{body{padding:8px}@page{margin:10mm}}</style></head><body>
+  @media print{body{padding:8px}@page{margin:10mm}}</style><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js">// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
+</script>
+<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous">// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
+</script>
+</head><body>
   <div class="hdr">
     <div><h1>🚗 차량 업무 일지</h1><div class="sub">(주)더 맛있는 하루</div></div>
     <div class="hdr-r"><strong style="font-size:13px">${emp}</strong><br>${yr}년 ${mo}월 (${recs.length}건)<br>출력: ${new Date().toLocaleDateString('ko-KR')}</div>
@@ -1415,7 +1829,24 @@ function expPDF() {
   </tbody></table>
   <div class="signs"><div class="sign"><div class="lbl">작성자</div><div class="line"></div></div><div class="sign"><div class="lbl">확인자</div><div class="line"></div></div></div>
   <div class="foot"><span>(주)더 맛있는 하루 — ${yr}년 ${mo}월</span><span>${emp} | ${new Date().toLocaleString('ko-KR')}</span></div>
-  <script>window.onload=()=>window.print()<\/script></body></html>`);
+  <script>window.onload=()=>window.print()<\/script><!-- 🟡 카카오 앱키 설정 모달 -->
+<div class="ov" id="kakaoKeyMod" onclick="if(event.target===this)closeKakaoKeyMod()">
+  <div class="modal" style="width:420px">
+    <h3>🟡 카카오톡 공유 설정</h3>
+    <p>앱키를 저장하면 다음에도 자동으로 적용됩니다</p>
+    <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">JavaScript 앱키</label>
+    <input class="fi" id="kakaoKeyInput" placeholder="카카오 JavaScript 앱키 입력..." style="width:100%;margin-bottom:10px">
+    <p style="font-size:11px;color:#6b7280;margin:0 0 16px">
+      발급: <a href="https://developers.kakao.com" target="_blank" style="color:#FEE500">developers.kakao.com</a>
+      → 내 애플리케이션 → 앱 키 → JavaScript 키 (무료)
+    </p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" style="background:#374151;color:#d1d5db" onclick="closeKakaoKeyMod()">취소</button>
+      <button class="btn" style="background:#FEE500;color:#191600;font-weight:700" onclick="saveKakaoKey()">저장</button>
+    </div>
+  </div>
+</div>
+</body></html>`);
   w.document.close();
 }
 
@@ -2522,6 +2953,91 @@ async function runAutoFill() {
 }
 
 init();
+// ── 카카오 공유 ───────────────────────────────────────────────────────────────
+function openKakaoKeyMod() {
+  document.getElementById('kakaoKeyInput').value = localStorage.getItem('kakaoAppKey') || '';
+  document.getElementById('kakaoKeyMod').style.display = 'flex';
+}
+function closeKakaoKeyMod() {
+  document.getElementById('kakaoKeyMod').style.display = 'none';
+}
+function saveKakaoKey() {
+  const key = document.getElementById('kakaoKeyInput').value.trim();
+  if (!key) { toast('앱키를 입력해주세요', true); return; }
+  localStorage.setItem('kakaoAppKey', key);
+  initKakaoSDK(key);
+  closeKakaoKeyMod();
+  toast('카카오 앱키가 저장됐습니다 ✓');
+}
+function initKakaoSDK(key) {
+  try {
+    if (typeof Kakao === 'undefined') return;
+    if (Kakao.isInitialized()) Kakao.cleanup();
+    Kakao.init(key);
+  } catch(e) { console.warn('Kakao init:', e); }
+}
+(function loadKakaoKey() {
+  const key = localStorage.getItem('kakaoAppKey');
+  if (key) initKakaoSDK(key);
+})();
+
+async function kakaoShareVehicle() {
+  const appKey = localStorage.getItem('kakaoAppKey') || '';
+  if (!appKey) { openKakaoKeyMod(); return; }
+  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  }
+  const target = document.getElementById('lTable');
+  if (!target || !target.innerHTML.trim()) {
+    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  }
+  toast('이미지 생성 중...');
+  const wasTab = curTab;
+  if (curTab !== '목록') switchTab('목록');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    const captureEl = document.getElementById('tab-목록');
+    const canvas = await html2canvas(captureEl, {
+      scale: 2, backgroundColor: '#111827', useCORS: true, logging: false
+    });
+    if (wasTab !== '목록') switchTab(wasTab);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
+    toast('카카오 서버에 업로드 중...');
+    const up = await Kakao.Share.uploadImage({file:[file]});
+    const imageUrl = up.infos.original.url;
+    Kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
+        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        imageUrl,
+        link: { mobileWebUrl: location.href, webUrl: location.href }
+      },
+      buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
+    });
+  } catch(err) {
+    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
+    console.error(err);
+  }
+}
 </script>
+<!-- 🟡 카카오 앱키 설정 모달 -->
+<div class="ov" id="kakaoKeyMod" onclick="if(event.target===this)closeKakaoKeyMod()">
+  <div class="modal" style="width:420px">
+    <h3>🟡 카카오톡 공유 설정</h3>
+    <p>앱키를 저장하면 다음에도 자동으로 적용됩니다</p>
+    <label style="font-size:12px;color:#9ca3af;display:block;margin-bottom:4px">JavaScript 앱키</label>
+    <input class="fi" id="kakaoKeyInput" placeholder="카카오 JavaScript 앱키 입력..." style="width:100%;margin-bottom:10px">
+    <p style="font-size:11px;color:#6b7280;margin:0 0 16px">
+      발급: <a href="https://developers.kakao.com" target="_blank" style="color:#FEE500">developers.kakao.com</a>
+      → 내 애플리케이션 → 앱 키 → JavaScript 키 (무료)
+    </p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" style="background:#374151;color:#d1d5db" onclick="closeKakaoKeyMod()">취소</button>
+      <button class="btn" style="background:#FEE500;color:#191600;font-weight:700" onclick="saveKakaoKey()">저장</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
