@@ -671,9 +671,48 @@ let preset = null, curTab = '입력';
 // 월 피커 임시 연도
 let _mpYear = new Date().getFullYear();
 
-// ── localStorage DB ──
+// ── DB (서버 API + localStorage 캐시) ──
 const STORAGE_KEY = 'vl_data';
-function loadDB() {
+let sessionPin = '';
+
+// API 헬퍼
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+// PIN 한 번만 입력받아 세션 동안 재사용
+async function getAdminPin() {
+  if (sessionPin) {
+    const v = await api('POST', '/api/verify-pin', { pin: sessionPin });
+    if (v.ok) return sessionPin;
+    sessionPin = '';
+  }
+  const p = prompt('관리자 PIN을 입력하세요:');
+  if (!p) return null;
+  const v = await api('POST', '/api/verify-pin', { pin: p });
+  if (!v.ok) { toast('PIN이 올바르지 않습니다','err'); return null; }
+  sessionPin = p;
+  return p;
+}
+
+async function loadDB() {
+  try {
+    const r = await fetch('/api/data');
+    if (r.ok) {
+      const p = await r.json();
+      D.employees       = p.employees       || [];
+      D.records         = p.records         || [];
+      D.presets         = p.presets         || {};
+      D.vehicles        = p.vehicles        || [];
+      D.odometerRecords = p.odometerRecords || [];
+      saveLocalCache();
+      return;
+    }
+  } catch(e) { console.log('서버 연결 실패 → 로컬 캐시 사용'); }
+  // fallback: localStorage
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -686,9 +725,19 @@ function loadDB() {
     }
   } catch(e) { console.error('DB load error:', e); }
 }
-function saveDB() {
+function saveDB() { saveLocalCache(); } // 하위 호환용 alias
+function saveLocalCache() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(D)); }
-  catch(e) { toast('저장 실패: 저장 공간 부족','err'); }
+  catch(e) {}
+}
+function applyData(data) {
+  if (!data) return;
+  D.employees       = data.employees       || D.employees;
+  D.records         = data.records         || D.records;
+  D.presets         = data.presets         || D.presets;
+  D.vehicles        = data.vehicles        || D.vehicles;
+  D.odometerRecords = data.odometerRecords || D.odometerRecords;
+  saveLocalCache();
 }
 
 const pad = n => String(n).padStart(2,'0');
@@ -697,8 +746,8 @@ const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 
 
 // ── 초기화 ──
-function init() {
-  loadDB();
+async function init() {
+  await loadDB();
   setToday();
   updMonth();
   renderEmpSel();
@@ -884,7 +933,7 @@ function clearForm() {
   const hint = document.getElementById('calcHint');
   if (hint) hint.textContent = '출퇴근은 왕복·외근은 편도로 자동 계산됩니다';
 }
-function saveRecord() {
+async function saveRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const date = document.getElementById('fDate').value;
   if (!date) { toast('날짜를 입력하세요','err'); return; }
@@ -905,29 +954,36 @@ function saveRecord() {
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
-  D.records.push(r);
-  saveDB();
+  try {
+    const res = await api('POST', '/api/record', r);
+    if (res.ok) { applyData(res.data); } else { D.records.push(r); saveLocalCache(); }
+  } catch(e) { D.records.push(r); saveLocalCache(); }
   clearForm();
   render();
   toast('저장됨 ✓');
 }
-function delRec(id) {
+async function delRec(id) {
   if (!confirm('삭제할까요?')) return;
-  D.records = D.records.filter(r => r.id !== id);
-  saveDB();
+  try {
+    const res = await api('DELETE', `/api/record/${id}`);
+    if (res.ok) { applyData(res.data); } else { D.records = D.records.filter(r => r.id !== id); saveLocalCache(); }
+  } catch(e) { D.records = D.records.filter(r => r.id !== id); saveLocalCache(); }
   render();
   toast('삭제됨');
 }
 
 // ── 빠른 퇴근 기록 ──
-function quickCheckout(id) {
+async function quickCheckout(id) {
   const now = new Date();
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const rec = D.records.find(r => r.id === id);
   if (!rec) return;
   rec.checkout_time = timeStr;
   rec.updatedAt = new Date().toISOString();
-  saveDB();
+  try {
+    const res = await api('PATCH', `/api/record/${id}`, { checkout_time: timeStr });
+    if (res.ok) applyData(res.data); else saveLocalCache();
+  } catch(e) { saveLocalCache(); }
   render();
   updateCheckinCard();
   toast(`퇴근 시각 ${timeStr} 기록됨 ✓`);
@@ -961,14 +1017,19 @@ function showMsg(msg, type) {
   el.style.display = 'block';
   setTimeout(()=>el.style.display='none', 2500);
 }
-function addEmp() {
+async function addEmp() {
   const input = document.getElementById('newEmp');
   const name = input.value.trim();
   if (!name) { showMsg('이름을 입력해주세요','err'); return; }
   if (name.length > 20) { showMsg('이름이 너무 깁니다 (최대 20자)','err'); return; }
   if (D.employees.includes(name)) { showMsg('이미 등록된 사원입니다','err'); return; }
-  D.employees.push(name);
-  saveDB();
+  const pin = await getAdminPin();
+  if (!pin) return;
+  try {
+    const res = await api('POST', '/api/employee', { name, pin });
+    if (res.ok) { applyData(res.data); }
+    else { showMsg(res.msg || '추가 실패','err'); return; }
+  } catch(e) { D.employees.push(name); saveLocalCache(); }
   input.value = '';
   showMsg(name+' 추가됨 ✓','ok');
   renderEmpList();
@@ -976,16 +1037,24 @@ function addEmp() {
   document.getElementById('empSel').value = name;
   pickEmp(name);
 }
-function delEmp(name) {
+async function delEmp(name) {
   const recCount = D.records.filter(r=>r.emp===name).length;
   const msg = recCount > 0
     ? `${name} 삭제 시 기록 ${recCount}건도 모두 삭제됩니다.\n정말 삭제할까요?`
     : `${name}을(를) 삭제할까요?`;
   if (!confirm(msg)) return;
-  D.employees = D.employees.filter(e => e !== name);
-  D.records   = D.records.filter(r => r.emp !== name);
-  delete D.presets[name];
-  saveDB();
+  const pin = await getAdminPin();
+  if (!pin) return;
+  try {
+    const res = await api('DELETE', `/api/employee/${encodeURIComponent(name)}`, { pin });
+    if (res.ok) { applyData(res.data); }
+    else { toast(res.msg || '삭제 실패','err'); return; }
+  } catch(e) {
+    D.employees = D.employees.filter(e => e !== name);
+    D.records   = D.records.filter(r => r.emp !== name);
+    delete D.presets[name];
+    saveLocalCache();
+  }
   renderEmpList();
   renderEmpSel();
   if (emp===name) { emp=''; document.getElementById('empSel').value=''; render(); }
@@ -1002,7 +1071,7 @@ function openPreset() {
   document.getElementById('preMod').classList.add('on');
 }
 function closePreset() { document.getElementById('preMod').classList.remove('on'); }
-function savePreset() {
+async function savePreset() {
   const p = {
     emp,
     from:          document.getElementById('pFrom').value.trim(),
@@ -1012,7 +1081,10 @@ function savePreset() {
   };
   D.presets[emp] = p;
   preset = p;
-  saveDB();
+  try {
+    const res = await api('POST', '/api/preset', p);
+    if (res.ok) applyData(res.data); else saveLocalCache();
+  } catch(e) { saveLocalCache(); }
   closePreset();
   toast('출퇴근 설정 저장됨 ✓');
 }
@@ -1071,7 +1143,7 @@ function todayStr() {
   return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
 }
 
-function doCheckinIn() {
+async function doCheckinIn() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
   const today = todayStr();
@@ -1089,14 +1161,16 @@ function doCheckinIn() {
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
-  D.records.push(r);
-  saveDB();
+  try {
+    const res = await api('POST', '/api/record', r);
+    if (res.ok) applyData(res.data); else { D.records.push(r); saveLocalCache(); }
+  } catch(e) { D.records.push(r); saveLocalCache(); }
   const now = new Date(); yr = now.getFullYear(); mo = now.getMonth()+1;
   updMonth(); render(); updateCheckinCard();
   toast('🌅 출근 등록됨 ✓');
 }
 
-function doCheckinOut() {
+async function doCheckinOut() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
   const today = todayStr();
@@ -1107,7 +1181,7 @@ function doCheckinOut() {
   const r = {
     emp, date:today, type:'commute', direction:'out',
     car:  preset.car||'',
-    from: preset.to||'',   // 퇴근: 회사→집 (방향 반전)
+    from: preset.to||'',
     to:   preset.from||'',
     km:   Number(preset.km)||0,
     fuel: 0, client: '',
@@ -1116,8 +1190,10 @@ function doCheckinOut() {
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
-  D.records.push(r);
-  saveDB();
+  try {
+    const res = await api('POST', '/api/record', r);
+    if (res.ok) applyData(res.data); else { D.records.push(r); saveLocalCache(); }
+  } catch(e) { D.records.push(r); saveLocalCache(); }
   const now = new Date(); yr = now.getFullYear(); mo = now.getMonth()+1;
   updMonth(); render(); updateCheckinCard();
   toast('🏠 퇴근 등록됨 ✓');
@@ -1215,7 +1291,20 @@ function expPDF() {
 }
 
 // ── 백업 / 복원 ──
-function doBackup() {
+async function doBackup() {
+  try {
+    const r = await fetch('/api/export');
+    if (r.ok) {
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      toast('백업 파일 다운로드 중...');
+      return;
+    }
+  } catch(e) {}
+  // fallback: 로컬 데이터로 백업
   const exportData = { version:'2.0.0', exportedAt: new Date().toISOString(), ...D };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'}));
@@ -1223,25 +1312,30 @@ function doBackup() {
   a.click();
   toast('백업 파일 다운로드 중...');
 }
-function doRestore(input) {
+async function doRestore(input) {
   const file = input.files[0];
   if (!file) return;
   if (!confirm('현재 모든 데이터가 백업 파일로 교체됩니다. 계속할까요?')) { input.value=''; return; }
+  const pin = await getAdminPin();
+  if (!pin) { input.value=''; return; }
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const data = JSON.parse(e.target.result);
       if (!data.employees || !data.records) { toast('올바른 백업 파일이 아닙니다','err'); return; }
-      D = {
-        employees:       data.employees       || [],
-        records:         data.records         || [],
-        presets:         data.presets         || {},
-        vehicles:        data.vehicles        || [],
-        odometerRecords: data.odometerRecords || []
-      };
-      saveDB();
-      renderEmpSel();
-      render();
+      try {
+        const res = await api('POST', '/api/import', { ...data, pin });
+        if (res.ok) {
+          applyData(res.data);
+          renderEmpSel(); render();
+          toast('데이터 복원 완료 ✓');
+          return;
+        } else { toast(res.msg || '복원 실패','err'); return; }
+      } catch(ex2) {}
+      // fallback: 로컬만
+      D = { employees: data.employees||[], records: data.records||[],
+            presets: data.presets||{}, vehicles: data.vehicles||[], odometerRecords: data.odometerRecords||[] };
+      saveLocalCache(); renderEmpSel(); render();
       toast('데이터 복원 완료 ✓');
     } catch(ex) { toast('파일 읽기 오류: '+ex.message,'err'); }
   };
@@ -1589,14 +1683,17 @@ function renderVehicleList() {
 }
 
 // 차량 등록
-function addVehicle() {
+async function addVehicle() {
   const plate = document.getElementById('vPlate').value.trim();
   const model = document.getElementById('vModel').value.trim();
   const year  = Number(document.getElementById('vYear').value) || new Date().getFullYear();
   if (!plate) { toast('번호판을 입력해주세요','err'); return; }
   if (D.vehicles.find(v => v.plate === plate)) { toast('이미 등록된 번호판입니다','err'); return; }
-  D.vehicles.push({ id:'v_'+Date.now(), plate, model, year });
-  saveDB();
+  try {
+    const res = await api('POST', '/api/vehicle', { plate, model, year });
+    if (res.ok) applyData(res.data);
+    else { toast(res.msg || '등록 실패','err'); return; }
+  } catch(e) { D.vehicles.push({ id:'v_'+Date.now(), plate, model, year }); saveLocalCache(); }
   document.getElementById('vPlate').value = '';
   document.getElementById('vModel').value = '';
   document.getElementById('vYear').value  = '';
@@ -1605,11 +1702,21 @@ function addVehicle() {
 }
 
 // 차량 삭제
-function deleteVehicle(id) {
+async function deleteVehicle(id) {
   if (!confirm('차량을 삭제할까요? 관련 계기판 기록도 함께 삭제됩니다.')) return;
-  D.vehicles = D.vehicles.filter(v => v.id !== id);
-  D.odometerRecords = D.odometerRecords.filter(o => o.vehicleId !== id);
-  saveDB();
+  try {
+    const res = await api('DELETE', `/api/vehicle/${id}`);
+    if (res.ok) applyData(res.data);
+    else {
+      D.vehicles = D.vehicles.filter(v => v.id !== id);
+      D.odometerRecords = D.odometerRecords.filter(o => o.vehicleId !== id);
+      saveLocalCache();
+    }
+  } catch(e) {
+    D.vehicles = D.vehicles.filter(v => v.id !== id);
+    D.odometerRecords = D.odometerRecords.filter(o => o.vehicleId !== id);
+    saveLocalCache();
+  }
   renderVehicleTab();
   toast('차량 삭제됨');
 }
@@ -1675,31 +1782,62 @@ function loadOdoRecord() {
   if (savedMsg) savedMsg.style.display = 'none';
 }
 
-// 계기판 저장 (월초 / 월말 개별 저장)
-function saveOdometerField(field) {
+// 계기판 저장 (월초 / 월말 개별 저장) — 서버 API 연결
+async function saveOdometerField(field) {
   const vehicleId = document.getElementById('odoVehicle').value;
   if (!vehicleId) { toast('차량을 선택해주세요','err'); return; }
   const val = Number(document.getElementById(field === 'start' ? 'odoStart' : 'odoEnd').value||0);
   if (!val) { toast('값을 입력해주세요','err'); return; }
-  let rec = D.odometerRecords.find(o => o.vehicleId===vehicleId && o.year==yr && o.month==mo);
-  if (rec) {
-    if (field === 'start') rec.startKm = val;
-    else rec.endKm = val;
-    rec.updatedAt = new Date().toISOString();
-  } else {
-    const newRec = { id:'o_'+Date.now(), vehicleId, year:yr, month:mo, startKm:0, endKm:0, createdAt:new Date().toISOString() };
-    if (field === 'start') newRec.startKm = val;
-    else newRec.endKm = val;
-    D.odometerRecords.push(newRec);
+
+  // 기존 레코드에서 반대쪽 값 유지
+  const existing = D.odometerRecords.find(o => o.vehicleId===vehicleId && o.year==yr && o.month==mo);
+  const body = {
+    vehicleId,
+    year: yr, month: mo,
+    startKm: field === 'start' ? val : (existing?.startKm || 0),
+    endKm:   field === 'end'   ? val : (existing?.endKm   || 0)
+  };
+
+  // 버튼 로딩 표시
+  const btn = document.getElementById(field === 'start' ? 'odoStartBtn' : 'odoEndBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+  try {
+    const res = await api('POST', '/api/odometer', body);
+    if (res.ok) {
+      applyData(res.data);
+    } else {
+      // fallback: 로컬에만 저장
+      if (existing) {
+        if (field === 'start') existing.startKm = val; else existing.endKm = val;
+        existing.updatedAt = new Date().toISOString();
+      } else {
+        D.odometerRecords.push({ id:'o_'+Date.now(), vehicleId, year:yr, month:mo,
+          startKm: field==='start'?val:0, endKm: field==='end'?val:0, createdAt:new Date().toISOString() });
+      }
+      saveLocalCache();
+    }
+  } catch(e) {
+    // 오프라인 fallback
+    if (existing) {
+      if (field === 'start') existing.startKm = val; else existing.endKm = val;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      D.odometerRecords.push({ id:'o_'+Date.now(), vehicleId, year:yr, month:mo,
+        startKm: field==='start'?val:0, endKm: field==='end'?val:0, createdAt:new Date().toISOString() });
+    }
+    saveLocalCache();
+  } finally {
+    if (btn) btn.disabled = false;
   }
-  // 저장 후 월말 < 월초 경고 (저장은 허용)
+
+  // 월말 < 월초 경고
   const saved = D.odometerRecords.find(o => o.vehicleId===vehicleId && o.year==yr && o.month==mo);
   if (saved && saved.endKm > 0 && saved.startKm > 0 && saved.endKm < saved.startKm) {
     toast('⚠ 월말이 월초보다 작습니다. 확인해주세요','err');
   } else {
     toast(field === 'start' ? '📅 월초 계기판 저장됨 ✓' : '🏁 월말 계기판 저장됨 ✓');
   }
-  saveDB();
   loadOdoRecord();
   renderVehicleAnalysis();
 }
@@ -1827,7 +1965,7 @@ function dayTypeChange() {
   updateDayNaverLink();
 }
 
-function saveDayRecord() {
+async function saveDayRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const date = document.getElementById('dayDate').value;
   if (!date) { toast('날짜를 입력하세요','err'); return; }
@@ -1852,8 +1990,10 @@ function saveDayRecord() {
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
-  D.records.push(r);
-  saveDB();
+  try {
+    const res = await api('POST', '/api/record', r);
+    if (res.ok) applyData(res.data); else { D.records.push(r); saveLocalCache(); }
+  } catch(e) { D.records.push(r); saveLocalCache(); }
   closeDayModal();
   const [y,m] = date.split('-');
   yr = Number(y); mo = Number(m);
@@ -1875,7 +2015,7 @@ function openKmModal(id, date, km) {
 }
 function closeKmModal() { document.getElementById('kmMod').classList.remove('on'); }
 
-function saveKmEdit() {
+async function saveKmEdit() {
   const id = document.getElementById('kmModId').value;
   const km = Number(document.getElementById('kmModVal').value||0);
   if (km < 0) { toast('주행거리는 0 이상이어야 합니다','err'); return; }
@@ -1883,7 +2023,10 @@ function saveKmEdit() {
   if (!rec) { toast('기록을 찾을 수 없습니다','err'); return; }
   rec.km = km;
   rec.updatedAt = new Date().toISOString();
-  saveDB();
+  try {
+    const res = await api('PATCH', `/api/record/${id}`, { km });
+    if (res.ok) applyData(res.data); else saveLocalCache();
+  } catch(e) { saveLocalCache(); }
   closeKmModal();
   if (curTab === '자량관리') renderVehicleTab(); else render();
   toast(`주행거리 ${num(km)}km 으로 수정됨 ✓`);
