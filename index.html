@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="업무일지">
 <title>차량업무일지 v2</title>
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <!-- PWA 매니페스트 인라인 -->
 <script>
 (function(){
@@ -183,6 +184,26 @@ tr:hover td{background:rgba(96,165,250,.03)}
 .backup-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px 18px;background:#111827;border-radius:0 0 10px 10px;border-top:1px solid #374151}
 .backup-row label{font-size:12px;color:#6b7280}
 
+/* 주소검색 버튼 */
+.btn-addr{background:#374151;border:1px solid #4b5563;color:#9ca3af;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:14px;white-space:nowrap;transition:.15s;flex-shrink:0}
+.btn-addr:hover{border-color:#03C75A;color:#03C75A}
+/* 거리 계산 버튼 */
+.btn-calc{background:#1e3a2f;border:1px solid #059669;color:#34d399;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s}
+.btn-calc:hover{background:#059669;color:#fff}
+.btn-calc:disabled{opacity:.5;cursor:default}
+/* 출근/퇴근 방향 배지 */
+.bd-ci{background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.3)}
+.bd-co{background:rgba(167,139,250,.15);color:#a78bfa;border:1px solid rgba(167,139,250,.3)}
+/* 월 선택 피커 */
+.mp-wrap{position:relative;display:inline-flex;align-items:center}
+.month-picker{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#1f2937;border:1px solid #374151;border-radius:10px;padding:14px;z-index:300;box-shadow:0 8px 32px rgba(0,0,0,.6);min-width:230px}
+.month-picker.on{display:block}
+.mp-year{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.mp-year span{font-size:14px;font-weight:700;color:#f3f4f6;min-width:60px;text-align:center}
+.mp-months{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.mp-btn{background:#111827;border:1px solid #374151;color:#9ca3af;padding:7px 4px;border-radius:6px;cursor:pointer;font-size:12px;text-align:center;transition:.15s}
+.mp-btn:hover{background:#374151;color:#f3f4f6}
+.mp-btn.on{background:#2563eb;color:#fff;border-color:#2563eb}
 @media(max-width:700px){
   .stats{grid-template-columns:1fr 1fr}
   .row2,.row3{grid-template-columns:1fr}
@@ -219,9 +240,10 @@ tr:hover td{background:rgba(96,165,250,.03)}
       <div class="commute-sub" id="commuteSubTitle">사원을 선택해주세요</div>
       <div class="work-time" id="workTimeDisplay" style="display:none"></div>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn-checkin" id="checkinBtn" onclick="doCheckin()">✅ 출근 등록</button>
-      <button class="btn-checkout" id="checkoutBtn" onclick="doCheckout()" style="display:none">🏠 퇴근 등록</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="btn-checkin" id="checkinBtn" onclick="doCheckinIn()">🌅 출근 등록</button>
+      <button class="btn-checkout" id="checkoutBtn" onclick="doCheckinOut()" style="display:none">🏠 퇴근 등록</button>
+      <button class="btn btn-gray btn-sm" onclick="openDayModal()" style="font-size:11px;padding:6px 10px">📅 다른날</button>
     </div>
   </div>
 
@@ -235,7 +257,17 @@ tr:hover td{background:rgba(96,165,250,.03)}
 
   <div class="mrow">
     <button class="nbtn" onclick="chMon(-1)">‹</button>
-    <div class="mtitle" id="mtitle"><span>2025</span>년 <span>1</span>월</div>
+    <div class="mp-wrap">
+      <div class="mtitle" id="mtitle" onclick="toggleMonthPicker()" style="cursor:pointer"><span>2025</span>년 <span>1</span>월 <span style="font-size:11px;color:#4b5563">▼</span></div>
+      <div class="month-picker" id="monthPicker">
+        <div class="mp-year">
+          <button class="nbtn" onclick="event.stopPropagation();mpChYear(-1)">‹</button>
+          <span id="mpYear">2025</span>
+          <button class="nbtn" onclick="event.stopPropagation();mpChYear(1)">›</button>
+        </div>
+        <div class="mp-months" id="mpMonths"></div>
+      </div>
+    </div>
     <button class="nbtn" onclick="chMon(1)">›</button>
     <button class="exp-btn" onclick="goNow()">오늘</button>
     <span style="margin-left:auto;font-size:12px;color:#6b7280" id="rCnt">0건</span>
@@ -291,26 +323,34 @@ tr:hover td{background:rgba(96,165,250,.03)}
           </div>
         </div>
         <div class="row2">
-          <div class="fg ac-wrap">
+          <div class="fg">
             <label>출발지</label>
-            <input class="fi" id="fFrom" placeholder="출발지 입력"
-              oninput="acSearch(this,'acFrom')" onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')"
-              oninputCapture="updateNaverLink()">
-            <div class="ac-list" id="acFrom"></div>
+            <div class="ac-wrap" style="display:flex;gap:4px">
+              <input class="fi" id="fFrom" placeholder="출발지 입력" style="flex:1"
+                oninput="acSearch(this,'acFrom');updateNaverLink()" onblur="hideAc('acFrom')" onkeydown="acKey(event,'acFrom','fFrom')">
+              <button class="btn-addr" onclick="openAddrSearch('fFrom','from')" title="카카오 주소검색">📍</button>
+              <div class="ac-list" id="acFrom"></div>
+            </div>
           </div>
-          <div class="fg ac-wrap">
+          <div class="fg">
             <label>도착지</label>
-            <input class="fi" id="fTo" placeholder="도착지 입력"
-              oninput="acSearch(this,'acTo')" onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')"
-              oninputCapture="updateNaverLink()">
-            <div class="ac-list" id="acTo"></div>
+            <div class="ac-wrap" style="display:flex;gap:4px">
+              <input class="fi" id="fTo" placeholder="도착지 입력" style="flex:1"
+                oninput="acSearch(this,'acTo');updateNaverLink()" onblur="hideAc('acTo')" onkeydown="acKey(event,'acTo','fTo')">
+              <button class="btn-addr" onclick="openAddrSearch('fTo','to')" title="카카오 주소검색">📍</button>
+              <div class="ac-list" id="acTo"></div>
+            </div>
           </div>
         </div>
-        <div style="margin-top:8px">
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <a id="naverLink" href="#" target="_blank" rel="noopener"
             style="display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none">
-            🗺 네이버 지도 길찾기로 거리 확인하기 →
+            🗺 네이버 지도 확인 →
           </a>
+          <button id="calcDistBtn" class="btn-calc" onclick="calcDistance()" style="display:none">
+            📏 거리 자동계산
+          </button>
+          <span id="calcDistNote" style="display:none;font-size:11px;color:#6b7280">📍 버튼으로 주소 검색 시 자동계산 가능</span>
         </div>
         <div class="row3">
           <div class="fg">
@@ -420,7 +460,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="card">
       <div class="card-h">
         <h3>📊 이번 달 운행 분석</h3>
-        <button class="btn btn-green btn-sm" onclick="openBizModal()">+ 외근 추가</button>
+        <button class="btn btn-green btn-sm" onclick="openDayModal('business')">+ 다른날 등록</button>
       </div>
       <div id="vehicleAnalysis" style="padding:4px 0"></div>
     </div>
@@ -489,27 +529,75 @@ tr:hover td{background:rgba(96,165,250,.03)}
   </div>
 </div>
 
-<!-- 외근 추가 모달 (다른날 등록) -->
-<div class="ov" id="bizMod">
-  <div class="modal">
-    <h3>🚗 외근 추가</h3>
-    <p>다른 날짜의 외근 기록을 추가합니다</p>
+<!-- 다른날 등록 모달 (출퇴근/외근 통합) -->
+<div class="ov" id="dayMod">
+  <div class="modal" style="width:500px">
+    <h3>📅 다른날 등록</h3>
+    <p>다른 날짜의 출퇴근 또는 외근 기록을 추가합니다</p>
     <div class="row2">
-      <div class="fg" style="margin-top:0"><label>날짜</label><input type="date" class="fi" id="bizDate"></div>
-      <div class="fg" style="margin-top:0"><label>차량번호</label><input class="fi" id="bizCar" placeholder="12가 3456"></div>
+      <div class="fg" style="margin-top:0">
+        <label>날짜</label>
+        <input type="date" class="fi" id="dayDate">
+      </div>
+      <div class="fg" style="margin-top:0">
+        <label>유형</label>
+        <select class="fs" id="dayType" onchange="dayTypeChange()">
+          <option value="commute_in">🌅 출근 (편도)</option>
+          <option value="commute_out">🏠 퇴근 (편도)</option>
+          <option value="business">🚗 외근</option>
+        </select>
+      </div>
     </div>
     <div class="row2">
-      <div class="fg"><label>출발지</label><input class="fi" id="bizFrom" placeholder="출발지 입력"></div>
-      <div class="fg"><label>도착지</label><input class="fi" id="bizTo" placeholder="도착지 입력"></div>
+      <div class="fg">
+        <label>차량번호</label>
+        <input class="fi" id="dayCar" placeholder="12가 3456">
+      </div>
+      <div class="fg">
+        <label>주행거리 (km)</label>
+        <input type="number" class="fi" id="dayKm" placeholder="0" min="0">
+      </div>
     </div>
     <div class="row2">
-      <div class="fg"><label>주행거리(km)</label><input type="number" class="fi" id="bizKm" placeholder="0" min="0"></div>
-      <div class="fg"><label>방문처</label><input class="fi" id="bizClient" placeholder="거래처명"></div>
+      <div class="fg">
+        <label>출발지</label>
+        <div class="ac-wrap" style="display:flex;gap:4px">
+          <input class="fi" id="dayFrom" placeholder="출발지" style="flex:1"
+            oninput="updateDayNaverLink()" onblur="hideAc('acDayFrom')" onkeydown="acKey(event,'acDayFrom','dayFrom')">
+          <button class="btn-addr" onclick="openAddrSearch('dayFrom','dayFrom')" title="주소검색">📍</button>
+          <div class="ac-list" id="acDayFrom"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>도착지</label>
+        <div class="ac-wrap" style="display:flex;gap:4px">
+          <input class="fi" id="dayTo" placeholder="도착지" style="flex:1"
+            oninput="updateDayNaverLink()" onblur="hideAc('acDayTo')" onkeydown="acKey(event,'acDayTo','dayTo')">
+          <button class="btn-addr" onclick="openAddrSearch('dayTo','dayTo')" title="주소검색">📍</button>
+          <div class="ac-list" id="acDayTo"></div>
+        </div>
+      </div>
     </div>
-    <div class="fg"><label>업무내용</label><textarea class="ft" id="bizMemo" placeholder="업무 내용 간략 기재"></textarea></div>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <a id="dayNaverLink" href="#" target="_blank" rel="noopener"
+        style="display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;padding:6px 12px;border-radius:7px;font-size:11px;font-weight:600;text-decoration:none">
+        🗺 네이버 지도 →
+      </a>
+      <button id="dayCalcBtn" class="btn-calc" onclick="calcDistanceModal()" style="display:none;font-size:11px;padding:6px 12px">
+        📏 거리 자동계산
+      </button>
+    </div>
+    <div class="fg" id="dayClientWrap" style="display:none">
+      <label>방문처</label>
+      <input class="fi" id="dayClient" placeholder="거래처명">
+    </div>
+    <div class="fg">
+      <label>업무내용</label>
+      <textarea class="ft" id="dayMemo" placeholder="업무 내용 간략 기재" style="min-height:50px"></textarea>
+    </div>
     <div class="ma">
-      <button class="btn btn-gray" onclick="closeBizModal()">취소</button>
-      <button class="btn btn-blue" onclick="saveBizRecord()">저장</button>
+      <button class="btn btn-gray" onclick="closeDayModal()">취소</button>
+      <button class="btn btn-blue" onclick="saveDayRecord()">저장</button>
     </div>
   </div>
 </div>
@@ -538,6 +626,12 @@ tr:hover td{background:rgba(96,165,250,.03)}
 let D = {employees:[], records:[], presets:{}, vehicles:[], odometerRecords:[]};
 let emp = '', yr = new Date().getFullYear(), mo = new Date().getMonth()+1;
 let preset = null, curTab = '입력';
+// 주소 좌표 (메인 폼)
+let fromCoords = null, toCoords = null;
+// 주소 좌표 (다른날 등록 모달)
+let dayFromCoords = null, dayToCoords = null;
+// 월 피커 임시 연도
+let _mpYear = new Date().getFullYear();
 
 // ── localStorage DB ──
 const STORAGE_KEY = 'vl_data';
@@ -605,7 +699,12 @@ function updMonth() {
   document.getElementById('mtitle').innerHTML = `<span>${yr}</span>년 <span>${mo}</span>월`;
 }
 function chMon(d) { mo+=d; if(mo>12){mo=1;yr++} if(mo<1){mo=12;yr--} updMonth(); render(); }
-function goNow() { yr=new Date().getFullYear(); mo=new Date().getMonth()+1; updMonth(); render(); }
+function goNow() {
+  yr=new Date().getFullYear(); mo=new Date().getMonth()+1;
+  updMonth(); render();
+  const p = document.getElementById('monthPicker');
+  if (p) p.classList.remove('on');
+}
 
 // ── 탭 ──
 const ALL_TABS = ['입력','목록','요약','자량관리'];
@@ -640,7 +739,8 @@ function render() {
   recs.sort((a,b) => b.date > a.date ? 1 : -1);
 
   const km   = recs.reduce((s,r)=>s+Number(r.km||0),0);
-  const com  = recs.filter(r=>r.type==='commute').length;
+  const comDates = new Set(recs.filter(r=>r.type==='commute').map(r=>r.date));
+  const com  = comDates.size; // 출근+퇴근 같은 날이면 1회로 집계
   const biz  = recs.filter(r=>r.type==='business').length;
   const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
 
@@ -660,8 +760,12 @@ function render() {
   if (curTab==='요약') renderSum();
 }
 
-function bdg(t) {
-  if(t==='commute')  return '<span class="bd bd-c">출퇴근</span>';
+function bdg(t, direction) {
+  if(t==='commute') {
+    if(direction==='in')  return '<span class="bd bd-ci">출근</span>';
+    if(direction==='out') return '<span class="bd bd-co">퇴근</span>';
+    return '<span class="bd bd-c">출퇴근</span>';
+  }
   if(t==='business') return '<span class="bd bd-b">외근</span>';
   if(t==='fuel')     return '<span class="bd bd-f">주유</span>';
   return '';
@@ -678,7 +782,7 @@ function renderTable(recs, id) {
   recs.map(r => {
     return `<tr>
       <td class="tm">${esc(r.date?.replace(/-/g,'/'))}</td>
-      <td>${bdg(r.type)}</td>
+      <td>${bdg(r.type, r.direction)}</td>
       <td class="tm">${esc(r.car||'-')}</td>
       <td class="tc">${esc(r.from||'')}${r.to?' → '+esc(r.to):''}</td>
       <td class="tm" style="white-space:nowrap">
@@ -737,6 +841,7 @@ function typeChange() {
 function clearForm() {
   ['fFrom','fTo','fKm','fFuel','fClient','fMemo','fCar'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fType').value = 'commute';
+  fromCoords = null; toCoords = null;
   setToday();
   updateNaverLink();
 }
@@ -878,59 +983,46 @@ function updateCheckinCard() {
   if (!emp) { document.getElementById('commuteCard').style.display='none'; return; }
   document.getElementById('commuteCard').style.display='flex';
   const today = todayStr();
-  const todayRec = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute');
-  const checkinDone = !!todayRec;
-  const checkoutDone = todayRec && !!todayRec.checkout_time;
+  const inRec  = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute' && (r.direction==='in'||!r.direction));
+  const outRec = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute' && r.direction==='out');
 
-  const btn = document.getElementById('checkinBtn');
+  const btn    = document.getElementById('checkinBtn');
   const outBtn = document.getElementById('checkoutBtn');
-  const card = document.getElementById('commuteCard');
-  const title = document.getElementById('commuteTitle');
-  const sub = document.getElementById('commuteSubTitle');
-  const wDisp = document.getElementById('workTimeDisplay');
+  const card   = document.getElementById('commuteCard');
+  const title  = document.getElementById('commuteTitle');
+  const sub    = document.getElementById('commuteSubTitle');
+  const wDisp  = document.getElementById('workTimeDisplay');
+  if (wDisp) wDisp.style.display = 'none';
 
-  if (checkoutDone) {
-    // 출근+퇴근 모두 완료
+  if (inRec && outRec) {
     card.className = 'commute-card commute-done';
     title.textContent = '✅ 오늘 출퇴근 완료';
-    sub.textContent = today + ' · 출퇴근 기록 완료';
-    btn.textContent = '출근 완료';
+    sub.textContent = today + ' · 출근 + 퇴근 완료 · ' + (preset?.km ? preset.km+'km × 2' : '');
+    btn.textContent = '🌅 출근 완료';
     btn.className = 'btn-checkin done';
-    outBtn.textContent = '퇴근 완료';
+    outBtn.textContent = '🏠 퇴근 완료';
     outBtn.className = 'btn-checkout done';
     outBtn.style.display = 'block';
-    const wh = calcWorkHours(todayRec.checkin_time, todayRec.checkout_time);
-    if (wh) {
-      wDisp.style.display='block';
-      wDisp.className = wh.total > 600 ? 'work-time long' : 'work-time';
-      wDisp.textContent = `⏱ 근무시간: ${wh.text}`;
-    } else {
-      wDisp.style.display='none';
-    }
-  } else if (checkinDone) {
-    // 출근만 완료
+  } else if (inRec) {
     card.className = 'commute-card';
     title.textContent = '🏠 퇴근 체크';
-    sub.textContent = today + ` · 출근 ${todayRec.checkin_time||'기록됨'} — 퇴근 미기록`;
-    btn.textContent = '출근 완료';
+    sub.textContent = today + ' · 출근 완료 — 퇴근 미등록';
+    btn.textContent = '🌅 출근 완료';
     btn.className = 'btn-checkin done';
     outBtn.style.display = 'block';
     outBtn.textContent = '🏠 퇴근 등록';
     outBtn.className = 'btn-checkout';
-    wDisp.style.display = 'none';
   } else {
-    // 아직 미출근
     card.className = 'commute-card';
     outBtn.style.display = 'none';
-    wDisp.style.display = 'none';
-    if (preset) {
-      title.textContent = '🚗 오늘 출근 체크';
-      sub.textContent = `${preset.from||'?'} → ${preset.to||'?'} · ${preset.km||'?'}km (${preset.car||''})`;
+    if (preset && preset.from) {
+      title.textContent = '🌅 오늘 출근 체크';
+      sub.textContent = `${preset.from||'?'} → ${preset.to||'?'} · 편도 ${preset.km||'?'}km (${preset.car||''})`;
     } else {
-      title.textContent = '🚗 오늘 출근 체크';
+      title.textContent = '🚗 오늘 출퇴근';
       sub.textContent = '⚙ 출퇴근 설정에서 고정값을 먼저 설정해주세요';
     }
-    btn.textContent = '✅ 출근 등록';
+    btn.textContent = '🌅 출근 등록';
     btn.className = 'btn-checkin';
   }
 }
@@ -940,47 +1032,56 @@ function todayStr() {
   return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
 }
 
-function doCheckin() {
+function doCheckinIn() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
   const today = todayStr();
-  const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute');
+  const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute' && (r.direction==='in'||!r.direction));
   if (already) { toast('오늘 출근이 이미 등록됐습니다'); return; }
-  const now = new Date();
-  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   const r = {
-    emp, date:today, type:'commute',
+    emp, date:today, type:'commute', direction:'in',
     car:  preset.car||'',
     from: preset.from||'',
     to:   preset.to||'',
-    km:   preset.km||'',
-    fuel: '', client: '',
+    km:   Number(preset.km)||0,
+    fuel: 0, client: '',
     memo: '출근',
-    checkin_time:  timeStr,
-    checkout_time: '',
+    checkin_time:'', checkout_time:'',
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
   D.records.push(r);
   saveDB();
-  yr = now.getFullYear(); mo = now.getMonth()+1;
+  const now = new Date(); yr = now.getFullYear(); mo = now.getMonth()+1;
   updMonth(); render(); updateCheckinCard();
-  toast(`출근 등록됨 ✓ (${timeStr})`);
+  toast('🌅 출근 등록됨 ✓');
 }
 
-function doCheckout() {
+function doCheckinOut() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
+  if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
   const today = todayStr();
-  const rec = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute');
-  if (!rec) { toast('오늘 출근 기록이 없습니다','err'); return; }
-  if (rec.checkout_time) { toast('이미 퇴근이 등록됐습니다'); return; }
-  const now = new Date();
-  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  rec.checkout_time = timeStr;
-  rec.updatedAt = new Date().toISOString();
+  const hasIn = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute' && (r.direction==='in'||!r.direction));
+  if (!hasIn) { toast('오늘 출근 기록이 없습니다','err'); return; }
+  const already = D.records.some(r => r.emp===emp && r.date===today && r.type==='commute' && r.direction==='out');
+  if (already) { toast('오늘 퇴근이 이미 등록됐습니다'); return; }
+  const r = {
+    emp, date:today, type:'commute', direction:'out',
+    car:  preset.car||'',
+    from: preset.to||'',   // 퇴근: 회사→집 (방향 반전)
+    to:   preset.from||'',
+    km:   Number(preset.km)||0,
+    fuel: 0, client: '',
+    memo: '퇴근',
+    checkin_time:'', checkout_time:'',
+    id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    createdAt: new Date().toISOString()
+  };
+  D.records.push(r);
   saveDB();
-  render(); updateCheckinCard();
-  toast(`퇴근 등록됨 ✓ (${timeStr})`);
+  const now = new Date(); yr = now.getFullYear(); mo = now.getMonth()+1;
+  updMonth(); render(); updateCheckinCard();
+  toast('🏠 퇴근 등록됨 ✓');
 }
 
 // ── 내보내기 ──
@@ -1196,17 +1297,39 @@ function acKey(e, listId, inputId) {
   if(items[idx]) items[idx].classList.add('ac-sel');
 }
 
-// 네이버 지도 길찾기 링크
+// 네이버 지도 길찾기 링크 + 거리계산 버튼
 function updateNaverLink() {
-  const from = document.getElementById('fFrom')?.value.trim();
-  const to   = document.getElementById('fTo')?.value.trim();
-  const el   = document.getElementById('naverLink');
+  const from    = document.getElementById('fFrom')?.value.trim();
+  const to      = document.getElementById('fTo')?.value.trim();
+  const el      = document.getElementById('naverLink');
+  const calcBtn = document.getElementById('calcDistBtn');
+  const note    = document.getElementById('calcDistNote');
   if (!el) return;
   if (from && to) {
     el.href = `https://map.naver.com/p/directions/-/-/-/car?c=15,0,0,0,dh&departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}`;
     el.style.display = 'inline-flex';
+    if (calcBtn) calcBtn.style.display = 'inline-block';
+    if (note) note.style.display = (fromCoords && toCoords) ? 'none' : 'inline';
   } else {
     el.style.display = 'none';
+    if (calcBtn) calcBtn.style.display = 'none';
+    if (note)    note.style.display = 'none';
+  }
+}
+
+function updateDayNaverLink() {
+  const from    = document.getElementById('dayFrom')?.value.trim();
+  const to      = document.getElementById('dayTo')?.value.trim();
+  const el      = document.getElementById('dayNaverLink');
+  const calcBtn = document.getElementById('dayCalcBtn');
+  if (!el) return;
+  if (from && to) {
+    el.href = `https://map.naver.com/p/directions/-/-/-/car?c=15,0,0,0,dh&departure=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}`;
+    el.style.display = 'inline-flex';
+    if (calcBtn) calcBtn.style.display = 'inline-block';
+  } else {
+    el.style.display = 'none';
+    if (calcBtn) calcBtn.style.display = 'none';
   }
 }
 
@@ -1411,49 +1534,82 @@ function renderVehicleAnalysis() {
 }
 
 // ══════════════════════════════════════════
-// 📅 외근 추가 모달 (다른날 등록)
+// 📅 다른날 등록 모달 (출퇴근/외근 통합)
 // ══════════════════════════════════════════
-function openBizModal() {
+function openDayModal(defaultType) {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
-  // 날짜 기본값 오늘
-  document.getElementById('bizDate').value     = todayStr();
-  document.getElementById('bizCar').value      = preset?.car||'';
-  document.getElementById('bizFrom').value     = '';
-  document.getElementById('bizTo').value       = '';
-  document.getElementById('bizKm').value       = '';
-  document.getElementById('bizClient').value   = '';
-  document.getElementById('bizMemo').value     = '';
-  document.getElementById('bizMod').classList.add('on');
+  dayFromCoords = null; dayToCoords = null;
+  document.getElementById('dayDate').value = todayStr();
+  document.getElementById('dayType').value = defaultType || 'commute_in';
+  document.getElementById('dayMemo').value = '';
+  document.getElementById('dayClient').value = '';
+  dayTypeChange();
+  updateDayNaverLink();
+  document.getElementById('dayMod').classList.add('on');
 }
-function closeBizModal() { document.getElementById('bizMod').classList.remove('on'); }
+function closeDayModal() { document.getElementById('dayMod').classList.remove('on'); }
 
-function saveBizRecord() {
+function dayTypeChange() {
+  const t = document.getElementById('dayType').value;
+  const cw = document.getElementById('dayClientWrap');
+  if (cw) cw.style.display = t === 'business' ? 'flex' : 'none';
+  // 프리셋 자동 채우기
+  if (preset) {
+    if (t === 'commute_in') {
+      document.getElementById('dayFrom').value = preset.from || '';
+      document.getElementById('dayTo').value   = preset.to   || '';
+      document.getElementById('dayCar').value  = preset.car  || '';
+      document.getElementById('dayKm').value   = preset.km   || '';
+    } else if (t === 'commute_out') {
+      document.getElementById('dayFrom').value = preset.to   || ''; // 방향 반전
+      document.getElementById('dayTo').value   = preset.from || '';
+      document.getElementById('dayCar').value  = preset.car  || '';
+      document.getElementById('dayKm').value   = preset.km   || '';
+    } else {
+      document.getElementById('dayFrom').value = '';
+      document.getElementById('dayTo').value   = '';
+      document.getElementById('dayCar').value  = preset.car  || '';
+      document.getElementById('dayKm').value   = '';
+    }
+    dayFromCoords = null; dayToCoords = null;
+  }
+  updateDayNaverLink();
+}
+
+function saveDayRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
-  const date = document.getElementById('bizDate').value;
+  const date = document.getElementById('dayDate').value;
   if (!date) { toast('날짜를 입력하세요','err'); return; }
-  const km = Number(document.getElementById('bizKm').value||0);
+  const typeVal = document.getElementById('dayType').value;
+  const km = Number(document.getElementById('dayKm').value||0);
   if (km < 0) { toast('주행거리는 0 이상이어야 합니다','err'); return; }
+
+  let type, direction, defaultMemo;
+  if (typeVal === 'commute_in')  { type='commute'; direction='in';  defaultMemo='출근'; }
+  else if (typeVal === 'commute_out') { type='commute'; direction='out'; defaultMemo='퇴근'; }
+  else { type='business'; direction=''; defaultMemo=''; }
+
   const r = {
-    emp, date, type: 'business',
-    car:           document.getElementById('bizCar').value.trim(),
-    from:          document.getElementById('bizFrom').value.trim(),
-    to:            document.getElementById('bizTo').value.trim(),
+    emp, date, type, direction,
+    car:    document.getElementById('dayCar').value.trim(),
+    from:   document.getElementById('dayFrom').value.trim(),
+    to:     document.getElementById('dayTo').value.trim(),
     km, fuel: 0,
-    client:        document.getElementById('bizClient').value.trim(),
-    memo:          document.getElementById('bizMemo').value.trim(),
-    checkin_time:  '',
-    checkout_time: '',
+    client: document.getElementById('dayClient')?.value.trim()||'',
+    memo:   document.getElementById('dayMemo').value.trim() || defaultMemo,
+    checkin_time:'', checkout_time:'',
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
   D.records.push(r);
   saveDB();
-  closeBizModal();
+  closeDayModal();
   const [y,m] = date.split('-');
   yr = Number(y); mo = Number(m);
   updMonth();
   if (curTab === '자량관리') renderVehicleTab(); else render();
-  toast('외근 기록 저장됨 ✓');
+  const label = typeVal==='commute_in'?'출근':typeVal==='commute_out'?'퇴근':'외근';
+  toast(`${label} 기록 저장됨 ✓`);
 }
 
 // ══════════════════════════════════════════
@@ -1481,6 +1637,118 @@ function saveKmEdit() {
   if (curTab === '자량관리') renderVehicleTab(); else render();
   toast(`주행거리 ${num(km)}km 으로 수정됨 ✓`);
 }
+
+// ══════════════════════════════════════════
+// 📍 카카오 주소 검색 + 거리 자동계산
+// ══════════════════════════════════════════
+function openAddrSearch(fieldId, coordKey) {
+  if (typeof daum === 'undefined' || typeof daum.Postcode === 'undefined') {
+    toast('주소검색 서비스를 로딩 중입니다. 잠시 후 다시 시도해주세요.','err');
+    return;
+  }
+  new daum.Postcode({
+    oncomplete: function(data) {
+      const addr = data.roadAddress || data.jibunAddress || data.address;
+      const el = document.getElementById(fieldId);
+      if (el) el.value = addr;
+      const coords = (data.y && data.x) ? { lat: parseFloat(data.y), lng: parseFloat(data.x) } : null;
+      // 좌표 저장
+      if (coordKey === 'from') { fromCoords = coords; updateNaverLink(); if (toCoords) calcDistance(true); }
+      else if (coordKey === 'to') { toCoords = coords; updateNaverLink(); if (fromCoords) calcDistance(true); }
+      else if (coordKey === 'dayFrom') { dayFromCoords = coords; updateDayNaverLink(); if (dayToCoords) calcDistanceModal(true); }
+      else if (coordKey === 'dayTo')   { dayToCoords = coords; updateDayNaverLink(); if (dayFromCoords) calcDistanceModal(true); }
+    }
+  }).open();
+}
+
+async function calcDistance(auto) {
+  if (!fromCoords || !toCoords) {
+    if (!auto) toast('📍 버튼으로 출발지·도착지를 검색하면 자동계산됩니다','err');
+    return;
+  }
+  const btn = document.getElementById('calcDistBtn');
+  if (btn) { btn.textContent = '⏳ 계산 중...'; btn.disabled = true; }
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromCoords.lng},${fromCoords.lat};${toCoords.lng},${toCoords.lat}?overview=false`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('서버 오류');
+    const data = await resp.json();
+    if (data.code === 'Ok' && data.routes && data.routes[0]) {
+      const km = Math.round(data.routes[0].distance / 100) / 10;
+      document.getElementById('fKm').value = km;
+      const note = document.getElementById('calcDistNote');
+      if (note) note.style.display = 'none';
+      if (!auto) toast(`📏 편도 ${km}km 자동계산됨 ✓`);
+    } else {
+      throw new Error('경로 없음');
+    }
+  } catch(e) {
+    if (!auto) toast('거리 계산 실패 — 네이버 지도에서 직접 확인해주세요','err');
+  } finally {
+    if (btn) { btn.textContent = '📏 거리 자동계산'; btn.disabled = false; }
+  }
+}
+
+async function calcDistanceModal(auto) {
+  if (!dayFromCoords || !dayToCoords) {
+    if (!auto) toast('📍 버튼으로 출발지·도착지를 검색하면 자동계산됩니다','err');
+    return;
+  }
+  const btn = document.getElementById('dayCalcBtn');
+  if (btn) { btn.textContent = '⏳ 계산 중...'; btn.disabled = true; }
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${dayFromCoords.lng},${dayFromCoords.lat};${dayToCoords.lng},${dayToCoords.lat}?overview=false`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('서버 오류');
+    const data = await resp.json();
+    if (data.code === 'Ok' && data.routes && data.routes[0]) {
+      const km = Math.round(data.routes[0].distance / 100) / 10;
+      document.getElementById('dayKm').value = km;
+      if (!auto) toast(`📏 편도 ${km}km 자동계산됨 ✓`);
+    } else {
+      throw new Error('경로 없음');
+    }
+  } catch(e) {
+    if (!auto) toast('거리 계산 실패 — 네이버 지도에서 직접 확인해주세요','err');
+  } finally {
+    if (btn) { btn.textContent = '📏 거리 자동계산'; btn.disabled = false; }
+  }
+}
+
+// ══════════════════════════════════════════
+// 📅 월 선택 피커
+// ══════════════════════════════════════════
+function toggleMonthPicker() {
+  _mpYear = yr;
+  const el = document.getElementById('monthPicker');
+  if (!el) return;
+  el.classList.toggle('on');
+  if (el.classList.contains('on')) renderMpMonths();
+}
+function mpChYear(d) {
+  _mpYear += d;
+  document.getElementById('mpYear').textContent = _mpYear;
+  renderMpMonths();
+}
+function renderMpMonths() {
+  document.getElementById('mpYear').textContent = _mpYear;
+  const names = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  document.getElementById('mpMonths').innerHTML = names.map((n,i) =>
+    `<button class="mp-btn${_mpYear===yr&&(i+1)===mo?' on':''}" onclick="pickMonth(${_mpYear},${i+1})">${n}</button>`
+  ).join('');
+}
+function pickMonth(y, m) {
+  yr = y; mo = m; updMonth(); render();
+  document.getElementById('monthPicker').classList.remove('on');
+}
+document.addEventListener('click', function(e) {
+  const picker = document.getElementById('monthPicker');
+  const title  = document.getElementById('mtitle');
+  if (picker && picker.classList.contains('on') &&
+      !picker.contains(e.target) && title && !title.contains(e.target)) {
+    picker.classList.remove('on');
+  }
+});
 
 init();
 </script>
