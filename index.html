@@ -960,7 +960,7 @@ function bdg(t, direction) {
 }
 
 function addrCell(r) {
-  if (!addrVisible) return '<span style="color:#4b5563;font-size:11px">숨김</span>';
+  if (!addrVisible) return '<span style="color:#4b5563">-</span>';
   if (r.type === 'business') {
     // 외근: 거래처명 표시 (client 있으면 우선, 없으면 도착지명, 없으면 '거래처')
     const label = r.client || r.to || '거래처';
@@ -984,7 +984,7 @@ function renderTable(recs, id) {
   const totalKm = recs.reduce((s,r)=>s+Number(r.km||0),0);
   el.innerHTML = `<table><thead><tr>
     <th>날짜</th><th>유형</th><th>차량</th>
-    <th>${addrVisible ? '출발→도착' : '<span style="color:#4b5563">주소(숨김)</span>'}</th>
+    <th>출발→도착</th>
     <th>주행거리</th><th>주유금액</th><th>업무내용</th><th></th>
   </tr></thead><tbody>` +
   recs.map(r => {
