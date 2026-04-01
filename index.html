@@ -464,14 +464,14 @@ tr:hover td{background:rgba(96,165,250,.03)}
             <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:8px">📅 월초 계기판</div>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" class="fi" id="odoStart" placeholder="예) 43772" min="0" style="flex:1">
-              <button class="btn btn-blue btn-sm" onclick="saveOdometerField('start')" style="white-space:nowrap">저장</button>
+              <button class="btn btn-blue btn-sm" id="odoStartBtn" onclick="saveOdometerField('start')" style="white-space:nowrap">저장</button>
             </div>
           </div>
           <div style="background:#111827;border:1px solid #374151;border-radius:8px;padding:12px">
             <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:8px">🏁 월말 계기판</div>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="number" class="fi" id="odoEnd" placeholder="예) 44620" min="0" style="flex:1">
-              <button class="btn btn-blue btn-sm" onclick="saveOdometerField('end')" style="white-space:nowrap">저장</button>
+              <button class="btn btn-blue btn-sm" id="odoEndBtn" onclick="saveOdometerField('end')" style="white-space:nowrap">저장</button>
             </div>
           </div>
         </div>
@@ -1633,22 +1633,36 @@ function renderOdoSelect() {
 function loadOdoRecord() {
   const vid = document.getElementById('odoVehicle').value;
   const rec = (D.odometerRecords||[]).find(o => o.vehicleId===vid && o.year==yr && o.month==mo);
-  document.getElementById('odoStart').value = rec ? rec.startKm : '';
-  document.getElementById('odoEnd').value   = rec ? rec.endKm   : '';
+
+  const hasStart = rec && rec.startKm > 0;
+  const hasEnd   = rec && rec.endKm   > 0;
+
+  // 저장된 값이 있으면 입력창에 채우기, 없으면 비우기
+  document.getElementById('odoStart').value = hasStart ? rec.startKm : '';
+  document.getElementById('odoEnd').value   = hasEnd   ? rec.endKm   : '';
+
+  // 버튼 텍스트: 이미 저장된 값 있으면 "✏ 수정", 없으면 "저장"
+  const startBtn = document.querySelector('#odoStartBtn');
+  const endBtn   = document.querySelector('#odoEndBtn');
+  if (startBtn) { startBtn.textContent = hasStart ? '✏ 수정' : '저장'; startBtn.className = hasStart ? 'btn btn-gray btn-sm' : 'btn btn-blue btn-sm'; }
+  if (endBtn)   { endBtn.textContent   = hasEnd   ? '✏ 수정' : '저장'; endBtn.className   = hasEnd   ? 'btn btn-gray btn-sm' : 'btn btn-blue btn-sm'; }
+
+  // 저장 현황 표시
   const msg = document.getElementById('odoRecord');
-  if (rec) {
-    const hasStart = rec.startKm > 0;
-    const hasEnd   = rec.endKm   > 0;
-    const dist     = (hasEnd && hasStart) ? Math.max(0, rec.endKm - rec.startKm) : null;
+  if (rec && (hasStart || hasEnd)) {
+    const dist = (hasEnd && hasStart) ? Math.max(0, rec.endKm - rec.startKm) : null;
     msg.innerHTML = `<div style="background:#111827;border:1px solid #374151;border-radius:8px;padding:12px 16px;font-size:13px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
-      <span style="color:#9ca3af">${yr}년 ${mo}월</span>
-      <span style="color:#f3f4f6">📅 월초 <b style="color:#60a5fa">${hasStart ? num(rec.startKm)+'km' : '미입력'}</b></span>
-      <span style="color:#f3f4f6">🏁 월말 <b style="color:#34d399">${hasEnd ? num(rec.endKm)+'km' : '미입력'}</b></span>
-      ${dist !== null ? `<span style="color:#fbbf24;font-weight:700">이동거리: ${num(dist)}km</span>` : `<span style="color:#6b7280;font-size:11px">월초·월말 모두 입력하면 이동거리가 계산됩니다</span>`}
+      <span style="color:#9ca3af">${yr}년 ${mo}월 저장 현황</span>
+      <span>📅 월초 <b style="color:${hasStart?'#60a5fa':'#4b5563'}">${hasStart ? num(rec.startKm)+'km' : '미입력'}</b></span>
+      <span>🏁 월말 <b style="color:${hasEnd?'#34d399':'#4b5563'}">${hasEnd ? num(rec.endKm)+'km' : '미입력'}</b></span>
+      ${dist !== null
+        ? `<span style="color:#fbbf24;font-weight:700;margin-left:4px">🚗 이동거리: ${num(dist)}km</span>`
+        : `<span style="color:#6b7280;font-size:11px">월초·월말 모두 입력하면 이동거리가 계산됩니다</span>`}
     </div>`;
   } else {
     msg.innerHTML = `<div style="text-align:center;color:#4b5563;font-size:12px;padding:8px">이번 달 계기판 기록 없음</div>`;
   }
+
   const savedMsg = document.getElementById('odoSavedMsg');
   if (savedMsg) savedMsg.style.display = 'none';
 }
