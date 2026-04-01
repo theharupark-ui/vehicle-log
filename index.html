@@ -306,21 +306,17 @@ tr:hover td{background:rgba(96,165,250,.03)}
             <div class="ac-list" id="acTo"></div>
           </div>
         </div>
+        <div style="margin-top:8px">
+          <a id="naverLink" href="#" target="_blank" rel="noopener"
+            style="display:none;align-items:center;gap:6px;background:#03C75A;color:#fff;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none">
+            🗺 네이버 지도 길찾기로 거리 확인하기 →
+          </a>
+        </div>
         <div class="row3">
           <div class="fg">
             <label>주행거리 (km)</label>
-            <input type="number" class="fi" id="fKm" placeholder="45" min="0">
+            <input type="number" class="fi" id="fKm" placeholder="0" min="0">
           </div>
-          <div class="fg">
-            <label>출근 시각</label>
-            <input type="time" class="fi" id="fCheckinTime" placeholder="09:00">
-          </div>
-          <div class="fg">
-            <label>퇴근 시각</label>
-            <input type="time" class="fi" id="fCheckoutTime" placeholder="18:00">
-          </div>
-        </div>
-        <div class="row2">
           <div class="fg">
             <label>주유금액 (원)</label>
             <input type="number" class="fi" id="fFuel" placeholder="0" min="0">
@@ -333,12 +329,6 @@ tr:hover td{background:rgba(96,165,250,.03)}
         <div class="fg">
           <label>업무내용</label>
           <textarea class="ft" id="fMemo" placeholder="업무 내용 간략 기재"></textarea>
-        </div>
-        <div style="margin-top:8px">
-          <a id="naverLink" href="#" target="_blank" rel="noopener"
-            style="display:none;align-items:center;gap:5px;font-size:12px;color:#60a5fa;text-decoration:none">
-            🗺 네이버 지도로 길찾기
-          </a>
         </div>
         <div class="fa">
           <button class="btn btn-gray" onclick="clearForm()">초기화</button>
@@ -492,10 +482,6 @@ tr:hover td{background:rgba(96,165,250,.03)}
       <div class="fg" style="margin-top:0"><label>편도 거리(km)</label><input type="number" class="fi" id="pKm" placeholder="45" min="0"></div>
       <div class="fg" style="margin-top:0"><label>차량번호</label><input class="fi" id="pCar" placeholder="12가 3456"></div>
     </div>
-    <div class="row2">
-      <div class="fg" style="margin-top:0"><label>평소 출근 시각</label><input type="time" class="fi" id="pCheckinTime" placeholder="09:00"></div>
-      <div class="fg" style="margin-top:0"><label>평소 퇴근 시각</label><input type="time" class="fi" id="pCheckoutTime" placeholder="18:00"></div>
-    </div>
     <div class="ma">
       <button class="btn btn-gray" onclick="closePreset()">취소</button>
       <button class="btn btn-blue" onclick="savePreset()">저장</button>
@@ -519,10 +505,6 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="row2">
       <div class="fg"><label>주행거리(km)</label><input type="number" class="fi" id="bizKm" placeholder="0" min="0"></div>
       <div class="fg"><label>방문처</label><input class="fi" id="bizClient" placeholder="거래처명"></div>
-    </div>
-    <div class="row2">
-      <div class="fg"><label>출근 시각</label><input type="time" class="fi" id="bizCheckin"></div>
-      <div class="fg"><label>퇴근 시각</label><input type="time" class="fi" id="bizCheckout"></div>
     </div>
     <div class="fg"><label>업무내용</label><textarea class="ft" id="bizMemo" placeholder="업무 내용 간략 기재"></textarea></div>
     <div class="ma">
@@ -691,7 +673,7 @@ function renderTable(recs, id) {
   const totalKm = recs.reduce((s,r)=>s+Number(r.km||0),0);
   el.innerHTML = `<table><thead><tr>
     <th>날짜</th><th>유형</th><th>차량</th><th>출발→도착</th>
-    <th>주행거리</th><th>출근시각</th><th>퇴근시각</th><th>주유금액</th><th>업무내용</th><th></th>
+    <th>주행거리</th><th>주유금액</th><th>업무내용</th><th></th>
   </tr></thead><tbody>` +
   recs.map(r => {
     return `<tr>
@@ -703,12 +685,9 @@ function renderTable(recs, id) {
         <span style="font-weight:600;color:#60a5fa">${r.km?num(r.km)+'km':'0km'}</span>
         <button class="btn-km-edit" onclick="openKmModal('${esc(r.id)}','${esc(r.date)}',${Number(r.km||0)})">✏ 수정</button>
       </td>
-      <td class="tm">${esc(r.checkin_time||'-')}</td>
-      <td class="tm" id="co_${esc(r.id)}">${r.checkout_time ? esc(r.checkout_time) : (r.type==='commute' ? '<span style="color:#fbbf24;font-size:10px">미기록</span>' : '-')}</td>
       <td class="tm">${r.fuel?num(r.fuel)+'원':'-'}</td>
       <td class="tc">${esc(r.memo||'-')}</td>
       <td style="white-space:nowrap">
-        ${r.type==='commute' && !r.checkout_time ? `<button class="btn-green btn-sm btn" onclick="quickCheckout('${esc(r.id)}')" style="font-size:11px;padding:3px 8px;margin-right:4px">퇴근</button>` : ''}
         <button class="btn-red" onclick="delRec('${esc(r.id)}')">삭제</button>
       </td>
     </tr>`;
@@ -748,17 +727,15 @@ function setToday() {
 function typeChange() {
   const t = document.getElementById('fType').value;
   if (t==='commute' && preset) {
-    if(preset.from)          document.getElementById('fFrom').value = preset.from;
-    if(preset.to)            document.getElementById('fTo').value   = preset.to;
-    if(preset.km)            document.getElementById('fKm').value   = preset.km;
-    if(preset.car)           document.getElementById('fCar').value  = preset.car;
-    if(preset.checkin_time)  document.getElementById('fCheckinTime').value = preset.checkin_time;
-    if(preset.checkout_time) document.getElementById('fCheckoutTime').value = preset.checkout_time;
+    if(preset.from) document.getElementById('fFrom').value = preset.from;
+    if(preset.to)   document.getElementById('fTo').value   = preset.to;
+    if(preset.km)   document.getElementById('fKm').value   = preset.km;
+    if(preset.car)  document.getElementById('fCar').value  = preset.car;
   }
   updateNaverLink();
 }
 function clearForm() {
-  ['fFrom','fTo','fKm','fFuel','fClient','fMemo','fCar','fCheckinTime','fCheckoutTime'].forEach(id=>document.getElementById(id).value='');
+  ['fFrom','fTo','fKm','fFuel','fClient','fMemo','fCar'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fType').value = 'commute';
   setToday();
   updateNaverLink();
@@ -779,8 +756,8 @@ function saveRecord() {
     km, fuel,
     client:        document.getElementById('fClient').value.trim(),
     memo:          document.getElementById('fMemo').value.trim(),
-    checkin_time:  document.getElementById('fCheckinTime').value,
-    checkout_time: document.getElementById('fCheckoutTime').value,
+    checkin_time:  '',
+    checkout_time: '',
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
@@ -878,8 +855,6 @@ function openPreset() {
   document.getElementById('pTo').value           = preset?.to||'';
   document.getElementById('pKm').value           = preset?.km||'';
   document.getElementById('pCar').value          = preset?.car||'';
-  document.getElementById('pCheckinTime').value  = preset?.checkin_time||'';
-  document.getElementById('pCheckoutTime').value = preset?.checkout_time||'';
   document.getElementById('preMod').classList.add('on');
 }
 function closePreset() { document.getElementById('preMod').classList.remove('on'); }
@@ -890,8 +865,6 @@ function savePreset() {
     to:            document.getElementById('pTo').value.trim(),
     km:            document.getElementById('pKm').value,
     car:           document.getElementById('pCar').value.trim(),
-    checkin_time:  document.getElementById('pCheckinTime').value,
-    checkout_time: document.getElementById('pCheckoutTime').value,
   };
   D.presets[emp] = p;
   preset = p;
@@ -1020,9 +993,9 @@ function expCSV() {
   const recs = curRecs();
   if (!recs.length) { toast('기록 없음','err'); return; }
   const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
-  const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','주유금액','방문처','업무내용']];
+  const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','주유금액','방문처','업무내용']];
   recs.forEach(r => {
-    rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',r.fuel||0,r.client||'',r.memo||'']);
+    rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']);
   });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -1033,11 +1006,11 @@ function expCSV() {
 // 전체 직원 월간 CSV
 function expAllCSV() {
   const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
-  const rows = [['사원','날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','주유금액','방문처','업무내용']];
+  const rows = [['사원','날짜','유형','차량번호','출발지','도착지','주행(km)','주유금액','방문처','업무내용']];
   const recs = D.records.filter(r=>r.date?.startsWith(`${yr}-${pad(mo)}`)).sort((a,b)=>(a.emp+a.date)>(b.emp+b.date)?1:-1);
   if (!recs.length) { toast('기록 없음','err'); return; }
   recs.forEach(r => {
-    rows.push([r.emp,r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',r.fuel||0,r.client||'',r.memo||'']);
+    rows.push([r.emp,r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.fuel||0,r.client||'',r.memo||'']);
   });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -1085,14 +1058,12 @@ function expPDF() {
     <div class="s"><div class="sl">외근</div><div class="sv" style="color:#ea580c">${biz}<span style="font-size:10px"> 회</span></div></div>
     <div class="s"><div class="sl">주유금액</div><div class="sv" style="color:#b45309">${fl.toLocaleString()}<span style="font-size:10px"> 원</span></div></div>
   </div>
-  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>출근시각</th><th>퇴근시각</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
+  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
   ${recs.map(r=>{return`<tr>
     <td>${r.date||''}</td>
     <td><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:${bg[r.type]};color:${bc[r.type]}">${map[r.type]||r.type}</span></td>
     <td>${r.car||'-'}</td><td>${r.from||''}${r.to?' → '+r.to:''}</td>
     <td style="text-align:right;font-weight:600">${r.km?Number(r.km).toLocaleString()+'km':'-'}</td>
-    <td>${r.checkin_time||'-'}</td>
-    <td>${r.checkout_time||'-'}</td>
     <td style="text-align:right">${r.fuel?Number(r.fuel).toLocaleString()+'원':'-'}</td>
     <td>${r.memo||'-'}</td>
   </tr>`}).join('')}
@@ -1451,8 +1422,6 @@ function openBizModal() {
   document.getElementById('bizTo').value       = '';
   document.getElementById('bizKm').value       = '';
   document.getElementById('bizClient').value   = '';
-  document.getElementById('bizCheckin').value  = '';
-  document.getElementById('bizCheckout').value = '';
   document.getElementById('bizMemo').value     = '';
   document.getElementById('bizMod').classList.add('on');
 }
@@ -1472,8 +1441,8 @@ function saveBizRecord() {
     km, fuel: 0,
     client:        document.getElementById('bizClient').value.trim(),
     memo:          document.getElementById('bizMemo').value.trim(),
-    checkin_time:  document.getElementById('bizCheckin').value,
-    checkout_time: document.getElementById('bizCheckout').value,
+    checkin_time:  '',
+    checkout_time: '',
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     createdAt: new Date().toISOString()
   };
