@@ -69,7 +69,7 @@ select.emp-sel:focus{border-color:#60a5fa}
 .exp-btn:hover{border-color:#34d399;color:#34d399}
 
 /* STATS */
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 .stat{background:#1f2937;border:1px solid #374151;border-radius:10px;padding:16px 18px}
 .stat-l{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
 .stat-v{font-size:22px;font-weight:700}
@@ -160,7 +160,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
 .btn-checkout:hover{background:#f59e0b}
 .btn-checkout.done{background:#374151;color:#6b7280;cursor:default}
 
-/* 근무시간 표시 */
+/* 출퇴근 카드 근무시간 표시 */
 .work-time{font-size:11px;color:#fbbf24;font-weight:600;margin-top:4px}
 .work-time.long{color:#f87171}
 
@@ -170,7 +170,14 @@ tr:hover td{background:rgba(96,165,250,.03)}
 .pin-input:focus{border-color:#60a5fa}
 
 /* 파일 배너 */
-#fileBanner{display:none;background:#7c3aed;color:#fff;padding:12px 20px;text-align:center;font-size:13px;font-weight:600}
+#fileBanner{display:none}
+
+/* 총 주행거리 합산 바 */
+.km-total-bar{background:linear-gradient(135deg,#1e3a5f,#1f2937);border:1px solid #2563eb;border-radius:0 0 8px 8px;padding:12px 18px;display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600}
+
+/* KM 수정 버튼 */
+.btn-km-edit{background:#2563eb22;border:1px solid #2563eb66;color:#60a5fa;font-size:10px;padding:2px 7px;border-radius:4px;cursor:pointer;margin-left:5px;white-space:nowrap;transition:.15s}
+.btn-km-edit:hover{background:#2563eb;color:#fff;border-color:#2563eb}
 
 /* 백업 섹션 */
 .backup-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px 18px;background:#111827;border-radius:0 0 10px 10px;border-top:1px solid #374151}
@@ -251,10 +258,6 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="stat">
       <div class="stat-l">주유금액</div>
       <div class="stat-v" style="color:#fbbf24" id="sFuel">0<span class="stat-u">원</span></div>
-    </div>
-    <div class="stat">
-      <div class="stat-l">근무시간</div>
-      <div class="stat-v" style="color:#a78bfa" id="sHours">-<span class="stat-u">h</span></div>
     </div>
   </div>
 
@@ -440,31 +443,15 @@ tr:hover td{background:rgba(96,165,250,.03)}
 <div class="ov" id="empMod">
   <div class="modal">
     <h3>👤 사원 관리</h3>
-    <p>사원을 추가하거나 삭제합니다 (관리자 PIN 필요)</p>
+    <p>사원을 추가하거나 삭제합니다</p>
 
-    <!-- PIN 입력 -->
-    <div id="pinSection">
-      <div class="fg" style="margin-top:0">
-        <label>관리자 PIN</label>
-        <div class="pin-row">
-          <input type="password" class="pin-input" id="empPin" maxlength="8" placeholder="••••"
-            onkeydown="if(event.key==='Enter')verifyPin()">
-          <button class="btn btn-blue btn-sm" onclick="verifyPin()">확인</button>
-        </div>
-      </div>
-      <div class="msg" id="pinMsg"></div>
+    <div style="display:flex;gap:8px;margin-top:0">
+      <input class="fi" id="newEmp" placeholder="사원 이름" maxlength="20"
+        onkeydown="if(event.key==='Enter')addEmp()">
+      <button class="btn btn-blue btn-sm" id="addBtn" onclick="addEmp()">+ 추가</button>
     </div>
-
-    <!-- 사원 관리 (PIN 인증 후 표시) -->
-    <div id="empSection" style="display:none">
-      <div style="display:flex;gap:8px;margin-top:0">
-        <input class="fi" id="newEmp" placeholder="사원 이름" maxlength="20"
-          onkeydown="if(event.key==='Enter')addEmp()">
-        <button class="btn btn-blue btn-sm" id="addBtn" onclick="addEmp()">+ 추가</button>
-      </div>
-      <div class="msg" id="empMsg"></div>
-      <div class="emp-list" id="empList"></div>
-    </div>
+    <div class="msg" id="empMsg"></div>
+    <div class="emp-list" id="empList"></div>
 
     <!-- 백업 / 복원 -->
     <div class="backup-row" style="margin-top:16px;border-radius:8px;border:1px solid #374151">
@@ -566,45 +553,48 @@ tr:hover td{background:rgba(96,165,250,.03)}
 
 <script>
 // ── 상태 ──
-let D = {employees:[], records:[], presets:{}};
+let D = {employees:[], records:[], presets:{}, vehicles:[], odometerRecords:[]};
 let emp = '', yr = new Date().getFullYear(), mo = new Date().getMonth()+1;
 let preset = null, curTab = '입력';
-let pinVerified = false; // 관리자 PIN 인증 상태
+
+// ── localStorage DB ──
+const STORAGE_KEY = 'vl_data';
+function loadDB() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const p = JSON.parse(saved);
+      D.employees       = p.employees       || [];
+      D.records         = p.records         || [];
+      D.presets         = p.presets         || {};
+      D.vehicles        = p.vehicles        || [];
+      D.odometerRecords = p.odometerRecords || [];
+    }
+  } catch(e) { console.error('DB load error:', e); }
+}
+function saveDB() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(D)); }
+  catch(e) { toast('저장 실패: 저장 공간 부족','err'); }
+}
 
 const pad = n => String(n).padStart(2,'0');
 const num = n => Number(n||0).toLocaleString();
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); // [버그수정] XSS 방지
 
-const api = async (url, opt) => {
-  try {
-    const r = await fetch(url, opt);
-    return await r.json();
-  } catch(e) {
-    if (location.protocol === 'file:') throw new Error('file_protocol');
-    throw new Error('서버에 연결할 수 없습니다. 시작.bat으로 서버를 먼저 실행해주세요.');
-  }
-};
 
 // ── 초기화 ──
-async function init() {
-  if (location.protocol === 'file:') {
-    document.getElementById('fileBanner').style.display = 'block';
-    return;
-  }
+function init() {
+  loadDB();
   setToday();
   updMonth();
-  await reload();
+  renderEmpSel();
   const last = localStorage.getItem('vl_emp');
   if (last && D.employees.includes(last)) {
     document.getElementById('empSel').value = last;
-    await pickEmp(last);
+    pickEmp(last);
+  } else {
+    render();
   }
-}
-
-async function reload() {
-  D = await api('/api/data');
-  if (!D.presets) D.presets = {};
-  renderEmpSel();
 }
 
 // ── 사원 select ──
@@ -619,10 +609,10 @@ function renderEmpSel(keep) {
   if (v && D.employees.includes(v)) sel.value = v;
 }
 
-async function pickEmp(name) {
+function pickEmp(name) {
   emp = name;
   localStorage.setItem('vl_emp', name);
-  document.getElementById('navTitle').innerHTML = `🚗 차량업무일지 <span>/ ${esc(name||'더 맛있는 하루')}</span>`;
+  document.getElementById('navTitle').innerHTML = `🚗 차량업무일지 <span>/ ${esc(name||'')}</span>`;
   preset = D.presets[name] || null;
   render();
   updateCheckinCard();
@@ -647,7 +637,7 @@ function tab(name) {
   else render();
 }
 
-// ── 근무시간 계산 ──
+// ── 출퇴근 카드용 시간 계산 ──
 function calcWorkHours(checkin, checkout) {
   if (!checkin || !checkout) return null;
   const [ch, cm] = checkin.split(':').map(Number);
@@ -672,24 +662,10 @@ function render() {
   const biz  = recs.filter(r=>r.type==='business').length;
   const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
 
-  // 근무시간 합산
-  let totalWorkMins = 0;
-  recs.forEach(r => {
-    if (r.checkin_time && r.checkout_time) {
-      const wh = calcWorkHours(r.checkin_time, r.checkout_time);
-      if (wh) totalWorkMins += wh.total;
-    }
-  });
-  const workH = Math.floor(totalWorkMins / 60);
-  const workM = totalWorkMins % 60;
-
   document.getElementById('sKm').innerHTML   = `${num(km)}<span class="stat-u">km</span>`;
   document.getElementById('sCom').innerHTML  = `${com}<span class="stat-u">회</span>`;
   document.getElementById('sBiz').innerHTML  = `${biz}<span class="stat-u">회</span>`;
   document.getElementById('sFuel').innerHTML = `${num(fuel)}<span class="stat-u">원</span>`;
-  document.getElementById('sHours').innerHTML = totalWorkMins > 0
-    ? `${workH}<span class="stat-u">h ${workM > 0 ? workM+'m' : ''}</span>`
-    : `-<span class="stat-u">h</span>`;
   document.getElementById('rCnt').textContent = recs.length+'건';
 
   updateCheckinCard();
@@ -712,22 +688,23 @@ function bdg(t) {
 function renderTable(recs, id) {
   const el = document.getElementById(id);
   if (!recs.length) { el.innerHTML='<div class="empty">🚗 기록 없음</div>'; return; }
+  const totalKm = recs.reduce((s,r)=>s+Number(r.km||0),0);
   el.innerHTML = `<table><thead><tr>
     <th>날짜</th><th>유형</th><th>차량</th><th>출발→도착</th>
-    <th>주행</th><th>출근시각</th><th>퇴근시각</th><th>근무시간</th><th>주유금액</th><th>업무내용</th><th></th>
+    <th>주행거리</th><th>출근시각</th><th>퇴근시각</th><th>주유금액</th><th>업무내용</th><th></th>
   </tr></thead><tbody>` +
   recs.map(r => {
-    const wh = calcWorkHours(r.checkin_time, r.checkout_time);
-    const whClass = wh && wh.total > 600 ? 'work-time long' : 'work-time'; // 10시간+ 경고색
     return `<tr>
       <td class="tm">${esc(r.date?.replace(/-/g,'/'))}</td>
       <td>${bdg(r.type)}</td>
       <td class="tm">${esc(r.car||'-')}</td>
       <td class="tc">${esc(r.from||'')}${r.to?' → '+esc(r.to):''}</td>
-      <td class="tm" style="white-space:nowrap">${r.km?num(r.km)+'km':'-'} <button class="btn-red" style="font-size:10px;padding:1px 5px;margin-left:2px" onclick="openKmModal('${esc(r.id)}','${esc(r.date)}',${Number(r.km||0)})">수정</button></td>
+      <td class="tm" style="white-space:nowrap">
+        <span style="font-weight:600;color:#60a5fa">${r.km?num(r.km)+'km':'0km'}</span>
+        <button class="btn-km-edit" onclick="openKmModal('${esc(r.id)}','${esc(r.date)}',${Number(r.km||0)})">✏ 수정</button>
+      </td>
       <td class="tm">${esc(r.checkin_time||'-')}</td>
       <td class="tm" id="co_${esc(r.id)}">${r.checkout_time ? esc(r.checkout_time) : (r.type==='commute' ? '<span style="color:#fbbf24;font-size:10px">미기록</span>' : '-')}</td>
-      <td class="tm">${wh ? '<span class="'+whClass+'" style="font-size:11px">'+esc(wh.text)+'</span>' : '-'}</td>
       <td class="tm">${r.fuel?num(r.fuel)+'원':'-'}</td>
       <td class="tc">${esc(r.memo||'-')}</td>
       <td style="white-space:nowrap">
@@ -735,7 +712,12 @@ function renderTable(recs, id) {
         <button class="btn-red" onclick="delRec('${esc(r.id)}')">삭제</button>
       </td>
     </tr>`;
-  }).join('') + '</tbody></table>';
+  }).join('') +
+  `</tbody></table>
+  <div class="km-total-bar">
+    🚗 이번 달 총 주행거리&nbsp;&nbsp;<strong style="color:#60a5fa;font-size:16px">${num(totalKm)}<span style="font-size:12px;color:#9ca3af"> km</span></strong>
+    <span style="color:#6b7280;font-size:11px;margin-left:10px">${recs.length}건 기록 / 주행기록 ${recs.filter(r=>Number(r.km||0)>0).length}건</span>
+  </div>`;
 }
 
 function renderSum() {
@@ -745,12 +727,6 @@ function renderSum() {
     const com  = recs.filter(r=>r.type==='commute').length;
     const biz  = recs.filter(r=>r.type==='business').length;
     const fuel = recs.reduce((s,r)=>s+Number(r.fuel||0),0);
-    let totalMins = 0;
-    recs.forEach(r => {
-      const wh = calcWorkHours(r.checkin_time, r.checkout_time);
-      if (wh) totalMins += wh.total;
-    });
-    const wText = totalMins > 0 ? `${Math.floor(totalMins/60)}h ${totalMins%60>0?totalMins%60+'m':''}`.trim() : '-';
     return `<div class="ec">
       <div class="ec-n">${esc(e)}</div>
       <div class="ec-s">${yr}년 ${mo}월 · ${recs.length}건</div>
@@ -758,7 +734,6 @@ function renderSum() {
         <div class="es"><div class="es-l">총 주행</div><div class="es-v" style="color:#60a5fa">${num(km)}<span style="font-size:10px;color:#9ca3af"> km</span></div></div>
         <div class="es"><div class="es-l">출퇴근</div><div class="es-v" style="color:#34d399">${com}<span style="font-size:10px;color:#9ca3af"> 회</span></div></div>
         <div class="es"><div class="es-l">외근</div><div class="es-v" style="color:#fb923c">${biz}<span style="font-size:10px;color:#9ca3af"> 회</span></div></div>
-        <div class="es"><div class="es-l">근무시간</div><div class="es-v" style="color:#a78bfa;font-size:13px">${wText}</div></div>
         <div class="es" style="grid-column:1/-1"><div class="es-l">주유금액</div><div class="es-v" style="color:#fbbf24;font-size:13px">${num(fuel)}<span style="font-size:10px;color:#9ca3af"> 원</span></div></div>
       </div>
     </div>`;
@@ -788,7 +763,7 @@ function clearForm() {
   setToday();
   updateNaverLink();
 }
-async function saveRecord() {
+function saveRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const date = document.getElementById('fDate').value;
   if (!date) { toast('날짜를 입력하세요','err'); return; }
@@ -801,81 +776,51 @@ async function saveRecord() {
     car:           document.getElementById('fCar').value.trim(),
     from:          document.getElementById('fFrom').value.trim(),
     to:            document.getElementById('fTo').value.trim(),
-    km,
-    fuel,
+    km, fuel,
     client:        document.getElementById('fClient').value.trim(),
     memo:          document.getElementById('fMemo').value.trim(),
     checkin_time:  document.getElementById('fCheckinTime').value,
     checkout_time: document.getElementById('fCheckoutTime').value,
+    id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    createdAt: new Date().toISOString()
   };
-  const res = await api('/api/record', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-  if (res.ok) { D = res.data; clearForm(); render(); toast('저장됨 ✓'); }
-  else toast(res.msg||'저장 실패','err');
+  D.records.push(r);
+  saveDB();
+  clearForm();
+  render();
+  toast('저장됨 ✓');
 }
-async function delRec(id) {
+function delRec(id) {
   if (!confirm('삭제할까요?')) return;
-  const res = await api('/api/record/'+id, {method:'DELETE'});
-  if (res.ok) { D = res.data; render(); toast('삭제됨'); }
+  D.records = D.records.filter(r => r.id !== id);
+  saveDB();
+  render();
+  toast('삭제됨');
 }
 
 // ── 빠른 퇴근 기록 ──
-async function quickCheckout(id) {
+function quickCheckout(id) {
   const now = new Date();
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const res = await api('/api/record/'+id, {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ checkout_time: timeStr })
-  });
-  if (res.ok) {
-    D = res.data;
-    render();
-    updateCheckinCard();
-    toast(`퇴근 시각 ${timeStr} 기록됨 ✓`);
-  }
-}
-
-// ── 관리자 PIN ──
-async function verifyPin() {
-  const pin = document.getElementById('empPin').value;
-  if (!pin) { showPinMsg('PIN을 입력해주세요','err'); return; }
-  try {
-    const res = await api('/api/verify-pin', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
-    if (res.ok) {
-      pinVerified = true;
-      document.getElementById('pinSection').style.display = 'none';
-      document.getElementById('empSection').style.display = 'block';
-      renderEmpList();
-    } else {
-      showPinMsg('PIN이 올바르지 않습니다','err');
-      document.getElementById('empPin').value = '';
-      document.getElementById('empPin').focus();
-    }
-  } catch(e) { showPinMsg(e.message,'err'); }
-}
-function showPinMsg(msg, type) {
-  const el = document.getElementById('pinMsg');
-  el.textContent = msg;
-  el.className = 'msg '+(type||'ok');
-  el.style.display = 'block';
-  setTimeout(()=>el.style.display='none', 2500);
+  const rec = D.records.find(r => r.id === id);
+  if (!rec) return;
+  rec.checkout_time = timeStr;
+  rec.updatedAt = new Date().toISOString();
+  saveDB();
+  render();
+  updateCheckinCard();
+  toast(`퇴근 시각 ${timeStr} 기록됨 ✓`);
 }
 
 // ── 사원 관리 모달 ──
 function openEmpModal() {
-  pinVerified = false;
-  document.getElementById('pinSection').style.display = 'block';
-  document.getElementById('empSection').style.display = 'none';
-  document.getElementById('empPin').value = '';
   document.getElementById('empMod').classList.add('on');
-  setTimeout(()=>document.getElementById('empPin').focus(),100);
+  renderEmpList();
+  setTimeout(()=>document.getElementById('newEmp').focus(), 100);
 }
 function closeEmpModal() {
   document.getElementById('empMod').classList.remove('on');
-  document.getElementById('empPin').value = '';
-  document.getElementById('pinMsg').style.display = 'none';
   document.getElementById('empMsg').style.display = 'none';
-  pinVerified = false;
 }
 function renderEmpList() {
   const el = document.getElementById('empList');
@@ -895,58 +840,35 @@ function showMsg(msg, type) {
   el.style.display = 'block';
   setTimeout(()=>el.style.display='none', 2500);
 }
-async function addEmp() {
+function addEmp() {
   const input = document.getElementById('newEmp');
   const name = input.value.trim();
   if (!name) { showMsg('이름을 입력해주세요','err'); return; }
-  const pin = document.getElementById('empPin').value || sessionStorage.getItem('vl_pin');
-  const btn = document.getElementById('addBtn');
-  btn.disabled = true; btn.textContent = '추가 중...';
-  try {
-    const res = await api('/api/employee', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({name, pin})
-    });
-    if (!res.ok) { showMsg('⚠ '+res.msg,'err'); input.select(); return; }
-    D = res.data;
-    input.value = '';
-    showMsg(name+' 추가됨 ✓','ok');
-    renderEmpList();
-    renderEmpSel(name);
-    document.getElementById('empSel').value = name;
-    await pickEmp(name);
-  } catch(e) {
-    if (e.message === 'file_protocol') {
-      showMsg('⚠ index.html을 직접 열면 안됩니다! 시작.bat을 실행하세요.','err');
-    } else {
-      showMsg('⚠ '+e.message,'err');
-    }
-  } finally {
-    btn.disabled = false; btn.textContent = '+ 추가';
-  }
+  if (name.length > 20) { showMsg('이름이 너무 깁니다 (최대 20자)','err'); return; }
+  if (D.employees.includes(name)) { showMsg('이미 등록된 사원입니다','err'); return; }
+  D.employees.push(name);
+  saveDB();
+  input.value = '';
+  showMsg(name+' 추가됨 ✓','ok');
+  renderEmpList();
+  renderEmpSel(name);
+  document.getElementById('empSel').value = name;
+  pickEmp(name);
 }
-async function delEmp(name) {
-  const pin = document.getElementById('empPin').value;
+function delEmp(name) {
   const recCount = D.records.filter(r=>r.emp===name).length;
   const msg = recCount > 0
     ? `${name} 삭제 시 기록 ${recCount}건도 모두 삭제됩니다.\n정말 삭제할까요?`
     : `${name}을(를) 삭제할까요?`;
   if (!confirm(msg)) return;
-  const res = await api('/api/employee/'+encodeURIComponent(name), {
-    method:'DELETE',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({pin})
-  });
-  if (res.ok) {
-    D = res.data;
-    renderEmpList();
-    renderEmpSel();
-    if (emp===name) { emp=''; document.getElementById('empSel').value=''; render(); }
-    toast(`${name} 삭제됨 (기록 ${res.deletedRecords||0}건 포함)`);
-  } else {
-    showMsg('⚠ '+res.msg,'err');
-  }
+  D.employees = D.employees.filter(e => e !== name);
+  D.records   = D.records.filter(r => r.emp !== name);
+  delete D.presets[name];
+  saveDB();
+  renderEmpList();
+  renderEmpSel();
+  if (emp===name) { emp=''; document.getElementById('empSel').value=''; render(); }
+  toast(`${name} 삭제됨`);
 }
 
 // ── 출퇴근 설정 ──
@@ -961,7 +883,7 @@ function openPreset() {
   document.getElementById('preMod').classList.add('on');
 }
 function closePreset() { document.getElementById('preMod').classList.remove('on'); }
-async function savePreset() {
+function savePreset() {
   const p = {
     emp,
     from:          document.getElementById('pFrom').value.trim(),
@@ -971,8 +893,11 @@ async function savePreset() {
     checkin_time:  document.getElementById('pCheckinTime').value,
     checkout_time: document.getElementById('pCheckoutTime').value,
   };
-  await api('/api/preset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-  D.presets[emp]=p; preset=p; closePreset(); toast('출퇴근 설정 저장됨 ✓');
+  D.presets[emp] = p;
+  preset = p;
+  saveDB();
+  closePreset();
+  toast('출퇴근 설정 저장됨 ✓');
 }
 
 // ── 출근 체크 ──
@@ -1042,7 +967,7 @@ function todayStr() {
   return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
 }
 
-async function doCheckin() {
+function doCheckin() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   if (!preset || !preset.from) { toast('먼저 ⚙ 출퇴근 설정을 해주세요','err'); openPreset(); return; }
   const today = todayStr();
@@ -1060,18 +985,17 @@ async function doCheckin() {
     memo: '출근',
     checkin_time:  timeStr,
     checkout_time: '',
+    id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    createdAt: new Date().toISOString()
   };
-  const res = await api('/api/record',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-  if (res.ok) {
-    D = res.data;
-    const now2 = new Date();
-    yr = now2.getFullYear(); mo = now2.getMonth()+1;
-    updMonth(); render(); updateCheckinCard();
-    toast(`출근 등록됨 ✓ (${timeStr})`);
-  }
+  D.records.push(r);
+  saveDB();
+  yr = now.getFullYear(); mo = now.getMonth()+1;
+  updMonth(); render(); updateCheckinCard();
+  toast(`출근 등록됨 ✓ (${timeStr})`);
 }
 
-async function doCheckout() {
+function doCheckout() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const today = todayStr();
   const rec = D.records.find(r => r.emp===emp && r.date===today && r.type==='commute');
@@ -1079,16 +1003,11 @@ async function doCheckout() {
   if (rec.checkout_time) { toast('이미 퇴근이 등록됐습니다'); return; }
   const now = new Date();
   const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const res = await api('/api/record/'+rec.id, {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ checkout_time: timeStr })
-  });
-  if (res.ok) {
-    D = res.data;
-    render(); updateCheckinCard();
-    toast(`퇴근 등록됨 ✓ (${timeStr})`);
-  }
+  rec.checkout_time = timeStr;
+  rec.updatedAt = new Date().toISOString();
+  saveDB();
+  render(); updateCheckinCard();
+  toast(`퇴근 등록됨 ✓ (${timeStr})`);
 }
 
 // ── 내보내기 ──
@@ -1101,10 +1020,9 @@ function expCSV() {
   const recs = curRecs();
   if (!recs.length) { toast('기록 없음','err'); return; }
   const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
-  const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','근무시간','주유금액','방문처','업무내용']];
+  const rows = [['날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','주유금액','방문처','업무내용']];
   recs.forEach(r => {
-    const wh = calcWorkHours(r.checkin_time, r.checkout_time);
-    rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',wh?wh.text:'',r.fuel||0,r.client||'',r.memo||'']);
+    rows.push([r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',r.fuel||0,r.client||'',r.memo||'']);
   });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -1115,12 +1033,11 @@ function expCSV() {
 // 전체 직원 월간 CSV
 function expAllCSV() {
   const map = {commute:'출퇴근',business:'외근',fuel:'주유'};
-  const rows = [['사원','날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','근무시간','주유금액','방문처','업무내용']];
+  const rows = [['사원','날짜','유형','차량번호','출발지','도착지','주행(km)','출근시각','퇴근시각','주유금액','방문처','업무내용']];
   const recs = D.records.filter(r=>r.date?.startsWith(`${yr}-${pad(mo)}`)).sort((a,b)=>(a.emp+a.date)>(b.emp+b.date)?1:-1);
   if (!recs.length) { toast('기록 없음','err'); return; }
   recs.forEach(r => {
-    const wh = calcWorkHours(r.checkin_time, r.checkout_time);
-    rows.push([r.emp,r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',wh?wh.text:'',r.fuel||0,r.client||'',r.memo||'']);
+    rows.push([r.emp,r.date,map[r.type]||r.type,r.car||'',r.from||'',r.to||'',r.km||0,r.checkin_time||'',r.checkout_time||'',r.fuel||0,r.client||'',r.memo||'']);
   });
   const csv = '\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
@@ -1139,16 +1056,13 @@ function expPDF() {
   const com=recs.filter(r=>r.type==='commute').length;
   const biz=recs.filter(r=>r.type==='business').length;
   const fl=recs.reduce((s,r)=>s+Number(r.fuel||0),0);
-  let totalMins=0;
-  recs.forEach(r=>{const wh=calcWorkHours(r.checkin_time,r.checkout_time);if(wh)totalMins+=wh.total;});
-  const wText=totalMins>0?`${Math.floor(totalMins/60)}h ${totalMins%60>0?totalMins%60+'m':''}`.trim():'-';
   const w=window.open('','_blank','width=960,height=750');
   w.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Apple SD Gothic Neo',Malgun Gothic,sans-serif;font-size:11px;color:#111;padding:20px 24px}
   h1{font-size:17px;font-weight:900}.sub{font-size:10px;color:#666;margin-top:2px}
   .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
   .hdr-r{text-align:right;font-size:11px;color:#444;line-height:1.7}
-  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:14px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px}
   .s{background:#f4f6fb;border:1px solid #dde;border-radius:7px;padding:8px 11px}
   .sl{font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
   .sv{font-size:15px;font-weight:700}
@@ -1170,17 +1084,15 @@ function expPDF() {
     <div class="s"><div class="sl">출퇴근</div><div class="sv" style="color:#16a34a">${com}<span style="font-size:10px"> 회</span></div></div>
     <div class="s"><div class="sl">외근</div><div class="sv" style="color:#ea580c">${biz}<span style="font-size:10px"> 회</span></div></div>
     <div class="s"><div class="sl">주유금액</div><div class="sv" style="color:#b45309">${fl.toLocaleString()}<span style="font-size:10px"> 원</span></div></div>
-    <div class="s"><div class="sl">근무시간</div><div class="sv" style="color:#7c3aed">${wText}</div></div>
   </div>
-  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>출근시각</th><th>퇴근시각</th><th>근무시간</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
-  ${recs.map(r=>{const wh=calcWorkHours(r.checkin_time,r.checkout_time);return`<tr>
+  <table><thead><tr><th>날짜</th><th>유형</th><th>차량번호</th><th>출발→도착</th><th>주행</th><th>출근시각</th><th>퇴근시각</th><th>주유금액</th><th>업무내용</th></tr></thead><tbody>
+  ${recs.map(r=>{return`<tr>
     <td>${r.date||''}</td>
     <td><span style="display:inline-block;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;background:${bg[r.type]};color:${bc[r.type]}">${map[r.type]||r.type}</span></td>
     <td>${r.car||'-'}</td><td>${r.from||''}${r.to?' → '+r.to:''}</td>
-    <td style="text-align:right">${r.km?Number(r.km).toLocaleString()+'km':'-'}</td>
+    <td style="text-align:right;font-weight:600">${r.km?Number(r.km).toLocaleString()+'km':'-'}</td>
     <td>${r.checkin_time||'-'}</td>
     <td>${r.checkout_time||'-'}</td>
-    <td>${wh?wh.text:'-'}</td>
     <td style="text-align:right">${r.fuel?Number(r.fuel).toLocaleString()+'원':'-'}</td>
     <td>${r.memo||'-'}</td>
   </tr>`}).join('')}
@@ -1193,34 +1105,36 @@ function expPDF() {
 
 // ── 백업 / 복원 ──
 function doBackup() {
-  window.location.href = '/api/export';
+  const exportData = { version:'2.0.0', exportedAt: new Date().toISOString(), ...D };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'}));
+  a.download = `backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
   toast('백업 파일 다운로드 중...');
 }
-async function doRestore(input) {
+function doRestore(input) {
   const file = input.files[0];
   if (!file) return;
-  const pin = document.getElementById('empPin').value;
-  if (!pin) { toast('PIN을 먼저 입력하세요','err'); input.value=''; return; }
   if (!confirm('현재 모든 데이터가 백업 파일로 교체됩니다. 계속할까요?')) { input.value=''; return; }
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    const res = await api('/api/import', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({...data, pin})
-    });
-    if (res.ok) {
-      D = res.data;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.employees || !data.records) { toast('올바른 백업 파일이 아닙니다','err'); return; }
+      D = {
+        employees:       data.employees       || [],
+        records:         data.records         || [],
+        presets:         data.presets         || {},
+        vehicles:        data.vehicles        || [],
+        odometerRecords: data.odometerRecords || []
+      };
+      saveDB();
       renderEmpSel();
       render();
       toast('데이터 복원 완료 ✓');
-    } else {
-      toast('복원 실패: '+res.msg,'err');
-    }
-  } catch(e) {
-    toast('파일 읽기 오류: '+e.message,'err');
-  }
+    } catch(ex) { toast('파일 읽기 오류: '+ex.message,'err'); }
+  };
+  reader.readAsText(file);
   input.value='';
 }
 
@@ -1365,33 +1279,29 @@ function renderVehicleList() {
 }
 
 // 차량 등록
-async function addVehicle() {
+function addVehicle() {
   const plate = document.getElementById('vPlate').value.trim();
   const model = document.getElementById('vModel').value.trim();
-  const year  = document.getElementById('vYear').value.trim();
+  const year  = Number(document.getElementById('vYear').value) || new Date().getFullYear();
   if (!plate) { toast('번호판을 입력해주세요','err'); return; }
-  const res = await api('/api/vehicle', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({plate, model, year})
-  });
-  if (res.ok) {
-    D = res.data;
-    document.getElementById('vPlate').value = '';
-    document.getElementById('vModel').value = '';
-    document.getElementById('vYear').value  = '';
-    renderVehicleTab();
-    toast('차량 등록됨 ✓');
-  } else {
-    toast(res.msg||'등록 실패','err');
-  }
+  if (D.vehicles.find(v => v.plate === plate)) { toast('이미 등록된 번호판입니다','err'); return; }
+  D.vehicles.push({ id:'v_'+Date.now(), plate, model, year });
+  saveDB();
+  document.getElementById('vPlate').value = '';
+  document.getElementById('vModel').value = '';
+  document.getElementById('vYear').value  = '';
+  renderVehicleTab();
+  toast('차량 등록됨 ✓');
 }
 
 // 차량 삭제
-async function deleteVehicle(id) {
+function deleteVehicle(id) {
   if (!confirm('차량을 삭제할까요? 관련 계기판 기록도 함께 삭제됩니다.')) return;
-  const res = await api('/api/vehicle/'+id, {method:'DELETE'});
-  if (res.ok) { D = res.data; renderVehicleTab(); toast('차량 삭제됨'); }
+  D.vehicles = D.vehicles.filter(v => v.id !== id);
+  D.odometerRecords = D.odometerRecords.filter(o => o.vehicleId !== id);
+  saveDB();
+  renderVehicleTab();
+  toast('차량 삭제됨');
 }
 
 // 계기판 선택 드롭다운
@@ -1431,25 +1341,23 @@ function loadOdoRecord() {
 }
 
 // 계기판 저장
-async function saveOdometer() {
+function saveOdometer() {
   const vehicleId = document.getElementById('odoVehicle').value;
   if (!vehicleId) { toast('차량을 선택해주세요','err'); return; }
   const startKm = Number(document.getElementById('odoStart').value||0);
   const endKm   = Number(document.getElementById('odoEnd').value||0);
   if (endKm > 0 && endKm < startKm) { toast('월말 계기판이 월초보다 작습니다','err'); return; }
-  const res = await api('/api/odometer', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({vehicleId, year:yr, month:mo, startKm, endKm})
-  });
-  if (res.ok) {
-    D = res.data;
-    loadOdoRecord();
-    renderVehicleAnalysis();
-    toast('계기판 기록 저장됨 ✓');
+  let rec = D.odometerRecords.find(o => o.vehicleId===vehicleId && o.year==yr && o.month==mo);
+  if (rec) {
+    rec.startKm = startKm; rec.endKm = endKm;
+    rec.updatedAt = new Date().toISOString();
   } else {
-    toast(res.msg||'저장 실패','err');
+    D.odometerRecords.push({ id:'o_'+Date.now(), vehicleId, year:yr, month:mo, startKm, endKm, createdAt:new Date().toISOString() });
   }
+  saveDB();
+  loadOdoRecord();
+  renderVehicleAnalysis();
+  toast('계기판 기록 저장됨 ✓');
 }
 
 // 이번 달 운행 분석
@@ -1550,37 +1458,33 @@ function openBizModal() {
 }
 function closeBizModal() { document.getElementById('bizMod').classList.remove('on'); }
 
-async function saveBizRecord() {
+function saveBizRecord() {
   if (!emp) { toast('사원을 먼저 선택하세요','err'); return; }
   const date = document.getElementById('bizDate').value;
   if (!date) { toast('날짜를 입력하세요','err'); return; }
-  const km   = Number(document.getElementById('bizKm').value||0);
+  const km = Number(document.getElementById('bizKm').value||0);
   if (km < 0) { toast('주행거리는 0 이상이어야 합니다','err'); return; }
   const r = {
     emp, date, type: 'business',
     car:           document.getElementById('bizCar').value.trim(),
     from:          document.getElementById('bizFrom').value.trim(),
     to:            document.getElementById('bizTo').value.trim(),
-    km,
-    fuel:          0,
+    km, fuel: 0,
     client:        document.getElementById('bizClient').value.trim(),
     memo:          document.getElementById('bizMemo').value.trim(),
     checkin_time:  document.getElementById('bizCheckin').value,
     checkout_time: document.getElementById('bizCheckout').value,
+    id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    createdAt: new Date().toISOString()
   };
-  const res = await api('/api/record', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)});
-  if (res.ok) {
-    D = res.data;
-    closeBizModal();
-    // 해당 날짜 달로 이동
-    const [y,m] = date.split('-');
-    yr = Number(y); mo = Number(m);
-    updMonth();
-    if (curTab === '자량관리') renderVehicleTab(); else render();
-    toast('외근 기록 저장됨 ✓');
-  } else {
-    toast(res.msg||'저장 실패','err');
-  }
+  D.records.push(r);
+  saveDB();
+  closeBizModal();
+  const [y,m] = date.split('-');
+  yr = Number(y); mo = Number(m);
+  updMonth();
+  if (curTab === '자량관리') renderVehicleTab(); else render();
+  toast('외근 기록 저장됨 ✓');
 }
 
 // ══════════════════════════════════════════
@@ -1595,23 +1499,18 @@ function openKmModal(id, date, km) {
 }
 function closeKmModal() { document.getElementById('kmMod').classList.remove('on'); }
 
-async function saveKmEdit() {
-  const id  = document.getElementById('kmModId').value;
-  const km  = Number(document.getElementById('kmModVal').value||0);
+function saveKmEdit() {
+  const id = document.getElementById('kmModId').value;
+  const km = Number(document.getElementById('kmModVal').value||0);
   if (km < 0) { toast('주행거리는 0 이상이어야 합니다','err'); return; }
-  const res = await api('/api/record/'+id, {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({km})
-  });
-  if (res.ok) {
-    D = res.data;
-    closeKmModal();
-    if (curTab === '자량관리') renderVehicleTab(); else render();
-    toast(`주행거리 ${num(km)}km 으로 수정됨 ✓`);
-  } else {
-    toast(res.msg||'수정 실패','err');
-  }
+  const rec = D.records.find(r => r.id === id);
+  if (!rec) { toast('기록을 찾을 수 없습니다','err'); return; }
+  rec.km = km;
+  rec.updatedAt = new Date().toISOString();
+  saveDB();
+  closeKmModal();
+  if (curTab === '자량관리') renderVehicleTab(); else render();
+  toast(`주행거리 ${num(km)}km 으로 수정됨 ✓`);
 }
 
 init();
