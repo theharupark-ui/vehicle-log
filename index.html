@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -410,6 +410,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
       <div class="card-h">
         <h3 id="listTitle">— 목록</h3>
         <span style="font-size:12px;color:#6b7280" id="lCnt">0건</span>
+        <button class="exp-btn" id="addrToggleBtnList" onclick="toggleAddr()" style="border-color:#6b7280;color:#6b7280">🏠 주소 숨김</button>
       </div>
       <div id="lTable"></div>
     </div>
@@ -420,6 +421,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
     <div class="card">
       <div class="card-h">
         <h3>전체 직원 요약</h3>
+        <button class="exp-btn" id="addrToggleBtnSum" onclick="toggleAddr()" style="border-color:#6b7280;color:#6b7280">🏠 주소 숨김</button>
         <button class="exp-btn" onclick="expAllCSV()">⬇ 전체 CSV</button>
       </div>
       <div class="card-b">
@@ -861,7 +863,29 @@ const typeLabel = r => {
 
 
 // ── 초기화 ──
-async function init() {
+async async function saveAsImage() {
+  const btn = document.getElementById('saveImgBtn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳ 생성 중...'; btn.disabled = true; }
+  try {
+    const target = document.getElementById('tab-자량관리');
+    if (!target) throw new Error('캡처 대상 없음');
+    const canvas = await Promise.race([
+      html2canvas(target, { backgroundColor: '#111827', scale: 2, useCORS: true, logging: false }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('시간 초과 (10초)')), 10000))
+    ]);
+    const link = document.createElement('a');
+    const dateStr = `${yr}-${pad(mo)}`;
+    link.download = `차량일지_${emp}_${dateStr}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch(e) {
+    alert('이미지 저장 실패: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = orig || '📸 이미지 저장'; btn.disabled = false; }
+  }
+}
+function init() {
   await loadDB();
   setToday();
   updMonth();
@@ -984,13 +1008,25 @@ function addrCell(r) {
 }
 function toggleAddr() {
   addrVisible = !addrVisible;
-  const btn = document.getElementById('addrToggleBtn');
-  if (btn) {
-    btn.textContent = addrVisible ? '👁 주소 숨기기' : '👁 주소 보기';
-    btn.style.borderColor = addrVisible ? '#4b5563' : '#2563eb';
-    btn.style.color       = addrVisible ? '#9ca3af' : '#60a5fa';
-  }
+  const btns = [
+    document.getElementById('addrToggleBtn'),
+    document.getElementById('addrToggleBtnList'),
+    document.getElementById('addrToggleBtnSum')
+  ];
+  btns.forEach(function(btn) {
+    if (!btn) return;
+    if (btn.id === 'addrToggleBtn') {
+      btn.textContent = addrVisible ? '👁 주소 숨기기' : '👁 주소 보기';
+      btn.style.borderColor = addrVisible ? '#4b5563' : '#2563eb';
+      btn.style.color       = addrVisible ? '#9ca3af' : '#60a5fa';
+    } else {
+      btn.textContent = addrVisible ? '🏠 주소 숨김' : '🏠 주소 표시';
+      btn.style.borderColor = addrVisible ? '#6b7280' : '#2563eb';
+      btn.style.color       = addrVisible ? '#6b7280' : '#60a5fa';
+    }
+  });
   render();
+  renderSum();
 }
 function renderTable(recs, id) {
   const el = document.getElementById(id);
@@ -2554,41 +2590,74 @@ function initKakaoSDK(key) {
 })();
 
 async function kakaoShareVehicle() {
-  const appKey = localStorage.getItem('kakaoAppKey') || '';
-  if (!appKey) { openKakaoKeyMod(); return; }
-  if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
-    toast('카카오 SDK 로딩 중... 잠시 후 다시 시도해주세요', true); return;
+  // 앱키 체크 (빈 문자열, null 문자열 모두 거부)
+  const appKey = (localStorage.getItem('kakaoAppKey') || '').trim();
+  if (!appKey || appKey === 'null') { openKakaoKeyMod(); return; }
+
+  // Kakao SDK 초기화 확인
+  if (typeof Kakao === 'undefined') {
+    toast('카카오 SDK 로드 실패. 페이지를 새로고침해 주세요', true); return;
   }
-  const target = document.getElementById('lTable');
-  if (!target || !target.innerHTML.trim()) {
-    toast('먼저 목록 탭에서 직원/월 데이터를 확인해주세요', true); return;
+  if (!Kakao.isInitialized()) {
+    initKakaoSDK(appKey);
+    await new Promise(r => setTimeout(r, 300));
   }
-  toast('이미지 생성 중...');
-  const wasTab = curTab;
-  if (curTab !== '목록') switchTab('목록');
-  await new Promise(r => setTimeout(r, 200));
+  if (!Kakao.isInitialized()) {
+    toast('카카오 초기화 실패. 앱키를 확인해 주세요', true);
+    openKakaoKeyMod(); return;
+  }
+
+  if (!emp) { toast('사원을 먼저 선택하세요', true); return; }
+
+  const btnEl = document.getElementById('kakaoVehicleBtn');
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ 생성 중...'; }
+
   try {
+    // 목록 탭 캡처
+    const wasTab = curTab;
+    if (curTab !== '목록') switchTab('목록');
+    await new Promise(r => setTimeout(r, 300));
+
     const captureEl = document.getElementById('tab-목록');
-    const canvas = await html2canvas(captureEl, { scale:2, backgroundColor:'#111827', useCORS:true, logging:false });
+    if (!captureEl) throw new Error('목록 탭을 찾을 수 없습니다');
+
+    toast('이미지 생성 중...');
+
+    // html2canvas + 10초 타임아웃
+    const canvas = await Promise.race([
+      html2canvas(captureEl, { scale:1.5, backgroundColor:'#111827', useCORS:true, logging:false, allowTaint:true }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('이미지 생성 시간 초과 (10초)')), 10000))
+    ]);
+
     if (wasTab !== '목록') switchTab(wasTab);
+
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('이미지 변환 실패');
+
     const file = new File([blob], `vehicle_log_${yr}-${String(mo).padStart(2,'0')}.png`, {type:'image/png'});
     toast('카카오 서버에 업로드 중...');
+
     const up = await Kakao.Share.uploadImage({file:[file]});
     const imageUrl = up.infos.original.url;
+
+    const recCount = D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length;
     Kakao.Share.sendDefault({
       objectType: 'feed',
       content: {
         title: `🚗 ${emp} 차량업무일지 ${yr}년 ${mo}월`,
-        description: `총 ${D.records.filter(r=>r.emp===emp&&r.yr===yr&&r.mo===mo).length}건`,
+        description: `총 ${recCount}건 기록`,
         imageUrl,
         link: { mobileWebUrl: location.href, webUrl: location.href }
       },
       buttons: [{ title: '일지 보기', link: { mobileWebUrl: location.href, webUrl: location.href } }]
     });
+    toast('카카오톡 공유 창이 열렸습니다 ✓');
   } catch(err) {
-    toast('공유 오류: ' + (err.message || JSON.stringify(err)), true);
-    console.error(err);
+    const msg = err.message || JSON.stringify(err);
+    toast('공유 오류: ' + msg, true);
+    console.error('[kakaoShare]', err);
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🟡 카카오'; }
   }
 }
 
