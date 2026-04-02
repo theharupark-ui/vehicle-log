@@ -885,7 +885,7 @@ async function saveAsImage() {
     if (btn) { btn.textContent = orig || '📸 이미지 저장'; btn.disabled = false; }
   }
 }
-function init() {
+async function init() {
   await loadDB();
   setToday();
   updMonth();
