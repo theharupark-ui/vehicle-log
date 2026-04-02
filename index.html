@@ -226,7 +226,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
   .btn-checkin,.btn-checkout{width:100%}
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -320,7 +320,7 @@ tr:hover td{background:rgba(96,165,250,.03)}
           <button class="exp-btn" id="addrToggleBtn" onclick="toggleAddr()" style="border-color:#4b5563;color:#9ca3af">👁 주소 숨기기</button>
           <button class="exp-btn" onclick="expCSV()">⬇ CSV</button>
           <button class="exp-btn" onclick="expPDF()">🖨 PDF</button>
-          <button class="exp-btn" onclick="saveAsImage()" id="saveImgBtn" style="border-color:#7c3aed;color:#a78bfa">📸 이미지 저장</button>
+          
         </div>
       </div>
       <div class="card-b">
@@ -863,32 +863,6 @@ const typeLabel = r => {
 
 
 // ── 초기화 ──
-async function saveAsImage() {
-  const btn = document.getElementById('saveImgBtn');
-  const orig = btn ? btn.textContent : '';
-  if (btn) { btn.textContent = '⏳ 생성 중...'; btn.disabled = true; }
-  try {
-    const target = document.getElementById('tab-자량관리');
-    if (!target) throw new Error('캡처 대상 없음');
-    const canvas = await Promise.race([
-      html2canvas(target, { backgroundColor: '#111827', scale: 2, useCORS: true, logging: false }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('시간 초과 (10초)')), 10000))
-    ]);
-    const blob = await new Promise(function(resolve) { canvas.toBlob(resolve, 'image/png'); });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = '차량일지_' + emp + '_' + yr + '-' + pad(mo) + '.png';
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
-  } catch(e) {
-    alert('이미지 저장 실패: ' + e.message);
-  } finally {
-    if (btn) { btn.textContent = orig || '📸 이미지 저장'; btn.disabled = false; }
-  }
-}
 async function init() {
   await loadDB();
   setToday();
