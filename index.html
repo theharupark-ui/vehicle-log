@@ -874,11 +874,15 @@ async function saveAsImage() {
       html2canvas(target, { backgroundColor: '#111827', scale: 2, useCORS: true, logging: false }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('시간 초과 (10초)')), 10000))
     ]);
+    const blob = await new Promise(function(resolve) { canvas.toBlob(resolve, 'image/png'); });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    const dateStr = `${yr}-${pad(mo)}`;
-    link.download = `차량일지_${emp}_${dateStr}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.download = '차량일지_' + emp + '_' + yr + '-' + pad(mo) + '.png';
+    link.href = url;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
   } catch(e) {
     alert('이미지 저장 실패: ' + e.message);
   } finally {
